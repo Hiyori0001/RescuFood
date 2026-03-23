@@ -63,11 +63,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   });
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    const initialize = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
       setSession(session);
-      if (session) fetchProfile(session.user.id);
+      if (session) await fetchProfile(session.user.id);
+      
+      await fetchInventory();
+      await fetchImpactMetrics();
       setLoading(false);
-    });
+    };
+
+    initialize();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
@@ -77,9 +83,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setUser(null);
       }
     });
-
-    fetchInventory();
-    fetchImpactMetrics();
 
     return () => subscription.unsubscribe();
   }, []);
@@ -163,7 +166,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         name: item.name,
         type: item.type,
         quantity: item.quantity,
-        expiry_date: item.expiryDate,
+        expiry_date: item.expiry_date,
         provider_id: session.user.id,
         provider_name: user?.name || 'Anonymous',
         location: item.location,
