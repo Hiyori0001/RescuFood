@@ -1,6 +1,8 @@
 "use client";
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { supabase } from '@/integrations/supabase/client';
+import { showError } from '@/utils/toast';
 
 export type UserRole = 'Admin' | 'Provider' | 'NGO' | 'Beneficiary' | 'Volunteer';
 
@@ -16,103 +18,166 @@ export interface FoodItem {
   status: 'Available' | 'Requested' | 'Allocated' | 'Delivered';
   pricing: 'Donated' | 'Base-price' | 'Discounted';
   price?: number;
-  distance: number; // Mocked distance in km
+  distance: number;
   isNearExpiry: boolean;
 }
 
 interface AppState {
   user: { role: UserRole; name: string; id: string } | null;
   inventory: FoodItem[];
-  requests: any[];
   impactMetrics: {
     mealsSaved: number;
-    wasteReduced: number; // in kg
+    wasteReduced: number;
     communitiesServed: number;
   };
 }
 
 interface AppContextType extends AppState {
-  setUser: (user: { role: UserRole; name: string; id: string } | null) => void;
-  addFoodItem: (item: Omit<FoodItem, 'id' | 'status' | 'isNearExpiry' | 'distance'>) => void;
-  requestFood: (itemId: string) => void;
-  completeTransaction: (itemId: string) => void;
+  setUser: (user: AppState['user']) => void;
+  addFoodItem: (item: Omit<FoodItem, 'id' | 'status' | 'isNearExpiry' | 'distance'>) => Promise<void>;
+  requestFood: (itemId: string) => Promise<void>;
+  completeTransaction: (itemId: string) => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<AppState['user']>(null);
-  const [inventory, setInventory] = useState<FoodItem[]>([
-    {
-      id: '1',
-      name: 'Fresh Tomatoes',
-      type: 'Raw',
-      quantity: '10kg',
-      expiryDate: new Date(Date.now() + 36 * 60 * 60 * 1000).toISOString(),
-      providerId: 'p1',
-      providerName: 'Green Grocers',
-      location: 'Downtown',
-      status: 'Available',
-      pricing: 'Donated',
-      distance: 1.2,
-      isNearExpiry: true,
-    },
-    {
-      id: '2',
-      name: 'Vegetable Biryani',
-      type: 'Cooked',
-      quantity: '20 portions',
-      expiryDate: new Date(Date.now() + 12 * 60 * 60 * 1000).toISOString(),
-      providerId: 'p2',
-      providerName: 'Cloud Kitchen X',
-      location: 'North Side',
-      status: 'Available',
-      pricing: 'Base-price',
-      price: 50,
-      distance: 3.5,
-      isNearExpiry: true,
-    }
-  ]);
-
+  const [inventory, setInventory] = useState<FoodItem[]>([]);
   const [impactMetrics, setImpactMetrics] = useState({
-    mealsSaved: 1240,
-    wasteReduced: 450,
-    communitiesServed: 12,
+    mealsSaved: 0,
+    wasteReduced: 0,
+    communitiesServed: 0,
   });
 
-  const addFoodItem = (item: any) => {
-    const newItem: FoodItem = {
-      ...item,
-      id: Math.random().toString(36).substr(2, 9),
-      status: 'Available',
-      distance: Math.floor(Math.random() * 10) + 1,
-      isNearExpiry: new Date(item.expiryDate).getTime() - Date.now() < 72 * 60 * 60 * 1000,
-    };
-    setInventory(prev => [newItem, ...prev]);
-  };
+  // Fetch initial data from Supabase
+  useEffect(() => {
+    fetchInventory();
+    fetchImpactMetrics();
+  }, []);
 
-  const requestFood = (itemId: string) => {
-    setInventory(prev => prev.map(item => 
-      item.id === itemId ? { ...item, status: 'Requested' } : item
-    ));
-  };
+  const fetchInventory = async () => {
+    const { data, error } = await supabase
+      .from('inventory')
+      .select('*')
+      .order('created_at', { ascending: false });
 
-  const completeTransaction = (itemId: string) => {
-    setInventory(prev => prev.map(item => 
-      item.id === itemId ? { ...item, status: 'Delivered' } : item
-    ));
-    setImpactMetrics(prev => ({
-      ...prev,
-      mealsSaved: prev.mealsSaved + 10,
-      wasteReduced: prev.wasteReduced + 5,
+    if (error) {
+      showError('Failed to fetch inventory');
+      return;
+    }
+
+    const formattedData: FoodItem[] = data.map(item => ({
+      id: item.id,
+      name: item.name,
+      type: item.type,
+      quantity: item.quantity,
+      expiryDate: item.expiry_date,
+      providerId: item.provider_id,
+      providerName: item.provider_name,
+      location: item.location,
+      status: item.status,
+      pricing: item.pricing,
+      price: item.price,
+      distance: item.distance,
+      isNearExpiry: new Date(item.expiry_date).getTime() - Date.now() < 72 * 60 * 60 * 1000,
     }));
+
+    setInventory(formattedData);
+  };
+
+  const fetchImpactMetrics = async () => {
+    const { data, error } = await supabase
+      .from('impact_metrics')
+      .select('*')
+      .single();
+
+    if (error && error.code !== 'PGRST116') { // PGRST116 is "no rows returned"
+      console.error('Error fetching impact metrics:', error);
+      return;
+    }
+
+    if (data) {
+      setImpactMetrics({
+        mealsSaved: data.meals_saved,
+        wasteReduced: data.waste_reduced,
+        communitiesServed: data.communities_served,
+      });
+    }
+  };
+
+  const addFoodItem = async (item: any) => {
+    const distance = Math.floor(Math.random() * 10) + 1;
+    const { error } = await supabase
+      .from('inventory')
+      .insert([{
+        name: item.name,
+        type: item.type,
+        quantity: item.quantity,
+        expiry_date: item.expiryDate,
+        provider_id: item.providerId,
+        provider_name: item.providerName,
+        location: item.location,
+        status: 'Available',
+        pricing: item.pricing,
+        price: item.price || 0,
+        distance: distance
+      }]);
+
+    if (error) {
+      showError('Failed to add item');
+      throw error;
+    }
+    fetchInventory();
+  };
+
+  const requestFood = async (itemId: string) => {
+    const { error } = await supabase
+      .from('inventory')
+      .update({ status: 'Requested' })
+      .eq('id', itemId);
+
+    if (error) {
+      showError('Failed to request food');
+      return;
+    }
+    fetchInventory();
+  };
+
+  const completeTransaction = async (itemId: string) => {
+    const { error: updateError } = await supabase
+      .from('inventory')
+      .update({ status: 'Delivered' })
+      .eq('id', itemId);
+
+    if (updateError) {
+      showError('Failed to complete transaction');
+      return;
+    }
+
+    // Update impact metrics (simplified logic)
+    const { data: currentMetrics } = await supabase.from('impact_metrics').select('*').single();
+    
+    const newMetrics = {
+      meals_saved: (currentMetrics?.meals_saved || 0) + 10,
+      waste_reduced: (currentMetrics?.waste_reduced || 0) + 5,
+      communities_served: (currentMetrics?.communities_served || 0) + 1,
+    };
+
+    if (currentMetrics) {
+      await supabase.from('impact_metrics').update(newMetrics).eq('id', currentMetrics.id);
+    } else {
+      await supabase.from('impact_metrics').insert([newMetrics]);
+    }
+
+    fetchInventory();
+    fetchImpactMetrics();
   };
 
   return (
     <AppContext.Provider value={{ 
       user, setUser, inventory, impactMetrics, 
-      addFoodItem, requestFood, completeTransaction,
-      requests: [] 
+      addFoodItem, requestFood, completeTransaction
     }}>
       {children}
     </AppContext.Provider>
