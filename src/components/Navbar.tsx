@@ -11,10 +11,10 @@ const Navbar = () => {
   const location = useLocation();
 
   const navItems = [
-    { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['Provider', 'NGO', 'Beneficiary', 'Volunteer'] },
-    { path: '/marketplace', label: 'Marketplace', icon: ShoppingBasket, roles: ['NGO', 'Beneficiary'] },
-    { path: '/inventory', label: 'My Inventory', icon: UtensilsCrossed, roles: ['Provider'] },
-    { path: '/impact', label: 'Impact', icon: BarChart3, roles: ['Provider', 'NGO', 'Beneficiary', 'Volunteer'] },
+    { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['Admin', 'Provider', 'NGO', 'Beneficiary', 'Volunteer'] },
+    { path: '/marketplace', label: 'Marketplace', icon: ShoppingBasket, roles: ['Admin', 'NGO', 'Beneficiary'] },
+    { path: '/inventory', label: 'Inventory', icon: UtensilsCrossed, roles: ['Admin', 'Provider'] },
+    { path: '/impact', label: 'Impact', icon: BarChart3, roles: ['Admin', 'Provider', 'NGO', 'Beneficiary', 'Volunteer'] },
   ];
 
   return (

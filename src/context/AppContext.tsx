@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
 
-export type UserRole = 'Provider' | 'NGO' | 'Beneficiary' | 'Volunteer';
+export type UserRole = 'Admin' | 'Provider' | 'NGO' | 'Beneficiary' | 'Volunteer';
 
 export interface FoodItem {
   id: string;
@@ -48,7 +48,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       name: 'Fresh Tomatoes',
       type: 'Raw',
       quantity: '10kg',
-      expiryDate: new Date(Date.now() + 36 * 60 * 60 * 1000).toISOString(), // 36 hours from now
+      expiryDate: new Date(Date.now() + 36 * 60 * 60 * 1000).toISOString(),
       providerId: 'p1',
       providerName: 'Green Grocers',
       location: 'Downtown',

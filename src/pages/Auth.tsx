@@ -5,10 +5,10 @@ import { useNavigate } from 'react-router-dom';
 import { useApp, UserRole } from '@/context/AppContext';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Utensils, HeartHandshake, Users, Truck } from 'lucide-react';
+import { Utensils, HeartHandshake, Users, Truck, ShieldAlert } from 'lucide-react';
 import { showSuccess } from '@/utils/toast';
 import { cn } from '@/lib/utils';
 
@@ -28,10 +28,11 @@ const Auth = () => {
   };
 
   const roles = [
-    { id: 'Provider', icon: Utensils, label: 'Food Provider', desc: 'Restaurants, Kitchens, Canteens' },
-    { id: 'NGO', icon: HeartHandshake, label: 'NGO / Partner', desc: 'Community organizations' },
-    { id: 'Beneficiary', icon: Users, label: 'Beneficiary', desc: 'Individuals in need' },
-    { id: 'Volunteer', icon: Truck, label: 'Volunteer', desc: 'Logistics and delivery' },
+    { id: 'Admin', icon: ShieldAlert, label: 'Administrator', desc: 'Full system access' },
+    { id: 'Provider', icon: Utensils, label: 'Food Provider', desc: 'Restaurants, Kitchens' },
+    { id: 'NGO', icon: HeartHandshake, label: 'NGO / Partner', desc: 'Community orgs' },
+    { id: 'Beneficiary', icon: Users, label: 'Beneficiary', desc: 'Individuals' },
+    { id: 'Volunteer', icon: Truck, label: 'Volunteer', desc: 'Logistics' },
   ];
 
   return (
@@ -46,7 +47,7 @@ const Auth = () => {
             <div className="bg-emerald-600 p-8 text-white flex flex-col justify-center">
               <h2 className="text-3xl font-bold mb-4">Join the Mission</h2>
               <p className="text-emerald-50 opacity-90 leading-relaxed">
-                Select your role to start redistributing surplus food and making a real impact in your community.
+                Select your role to start redistributing surplus food and making a real impact.
               </p>
             </div>
             <div className="p-8 bg-white">
@@ -72,14 +73,14 @@ const Auth = () => {
                         type="button"
                         onClick={() => setRole(r.id as UserRole)}
                         className={cn(
-                          "flex flex-col items-center p-4 rounded-2xl border-2 transition-all text-left",
+                          "flex flex-col items-center p-3 rounded-2xl border-2 transition-all text-left",
                           role === r.id 
                             ? "border-emerald-500 bg-emerald-50 text-emerald-700" 
                             : "border-slate-100 hover:border-emerald-200 text-slate-600"
                         )}
                       >
-                        <r.icon className="w-6 h-6 mb-2" />
-                        <span className="text-xs font-bold">{r.label}</span>
+                        <r.icon className="w-5 h-5 mb-1" />
+                        <span className="text-[10px] font-bold text-center">{r.label}</span>
                       </button>
                     ))}
                   </div>
