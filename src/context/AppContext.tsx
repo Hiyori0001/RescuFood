@@ -50,7 +50,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     communitiesServed: 0,
   });
 
-  // Fetch initial data from Supabase
   useEffect(() => {
     fetchInventory();
     fetchImpactMetrics();
@@ -101,7 +100,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setImpactMetrics({
         mealsSaved: data.meals_saved,
         wasteReduced: data.waste_reduced,
-        communitiesServed: data.communities_served,
+        communities_served: data.communities_served,
       });
     }
   };
