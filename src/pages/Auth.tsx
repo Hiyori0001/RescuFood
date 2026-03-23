@@ -15,7 +15,7 @@ import { cn } from '@/lib/utils';
 const Auth = () => {
   const { setUser } = useApp();
   const navigate = useNavigate();
-  const [role, setRole] = useState<UserRole>('Provider');
+  const [role, setRole] = useState<UserRole>('Admin');
   const [name, setName] = useState('');
 
   const handleLogin = (e: React.FormEvent) => {

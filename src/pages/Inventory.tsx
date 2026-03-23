@@ -15,6 +15,7 @@ import { Badge } from '@/components/ui/badge';
 const Inventory = () => {
   const { user, inventory, addFoodItem } = useApp();
   const [isAdding, setIsAdding] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
     type: 'Raw' as 'Raw' | 'Cooked',
@@ -24,22 +25,28 @@ const Inventory = () => {
     price: 0,
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    addFoodItem({
-      ...formData,
-      providerId: user?.id || 'anon',
-      providerName: user?.name || 'Anonymous',
-      location: 'Current Location',
-    });
-    showSuccess('Food item listed successfully!');
-    setIsAdding(false);
-    setFormData({ name: '', type: 'Raw', quantity: '', expiryDate: '', pricing: 'Donated', price: 0 });
+    setIsSubmitting(true);
+    try {
+      await addFoodItem({
+        ...formData,
+        providerId: user?.id || 'anon',
+        providerName: user?.name || 'Anonymous',
+        location: 'Current Location',
+      });
+      showSuccess('Food item listed successfully!');
+      setIsAdding(false);
+      setFormData({ name: '', type: 'Raw', quantity: '', expiryDate: '', pricing: 'Donated', price: 0 });
+    } catch (error) {
+      // Error is handled in addFoodItem with showError
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const myInventory = inventory.filter(item => item.providerId === user?.id);
 
-  // Step 4: Recipe Recommendation Logic (Mock)
   const getRecipeRecommendation = (ingredient: string) => {
     const recipes: Record<string, string> = {
       'Tomatoes': 'Fresh Tomato Basil Pasta',
@@ -140,8 +147,12 @@ const Inventory = () => {
                       />
                     </div>
                   )}
-                  <Button type="submit" className="md:col-span-2 bg-emerald-600 hover:bg-emerald-700 text-white py-6 rounded-xl font-bold">
-                    Confirm Listing
+                  <Button 
+                    type="submit" 
+                    disabled={isSubmitting}
+                    className="md:col-span-2 bg-emerald-600 hover:bg-emerald-700 text-white py-6 rounded-xl font-bold"
+                  >
+                    {isSubmitting ? 'Listing...' : 'Confirm Listing'}
                   </Button>
                 </form>
               </CardContent>
@@ -171,7 +182,6 @@ const Inventory = () => {
                       <span className="bg-slate-100 px-2 py-0.5 rounded text-xs font-bold uppercase tracking-wider">{item.pricing}</span>
                     </div>
 
-                    {/* Step 3 & 4: Near-Expiry and Recipe Recommendation */}
                     {item.isNearExpiry && item.type === 'Raw' && (
                       <div className="mt-4 p-4 bg-amber-50 border border-amber-100 rounded-xl flex items-start gap-3">
                         <AlertTriangle className="w-5 h-5 text-amber-600 mt-0.5" />
