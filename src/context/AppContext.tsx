@@ -63,7 +63,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       .order('created_at', { ascending: false });
 
     if (error) {
-      showError('Failed to fetch inventory');
+      console.error('Error fetching inventory:', error);
       return;
     }
 
@@ -92,7 +92,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       .select('*')
       .single();
 
-    if (error && error.code !== 'PGRST116') { // PGRST116 is "no rows returned"
+    if (error && error.code !== 'PGRST116') {
       console.error('Error fetching impact metrics:', error);
       return;
     }
@@ -125,10 +125,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }]);
 
     if (error) {
-      showError('Failed to add item');
+      console.error('Supabase error:', error);
+      showError('Failed to add item: ' + error.message);
       throw error;
     }
-    fetchInventory();
+    await fetchInventory();
   };
 
   const requestFood = async (itemId: string) => {
@@ -141,7 +142,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       showError('Failed to request food');
       return;
     }
-    fetchInventory();
+    await fetchInventory();
   };
 
   const completeTransaction = async (itemId: string) => {
@@ -155,7 +156,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return;
     }
 
-    // Update impact metrics (simplified logic)
     const { data: currentMetrics } = await supabase.from('impact_metrics').select('*').single();
     
     const newMetrics = {
@@ -170,8 +170,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       await supabase.from('impact_metrics').insert([newMetrics]);
     }
 
-    fetchInventory();
-    fetchImpactMetrics();
+    await fetchInventory();
+    await fetchImpactMetrics();
   };
 
   return (
