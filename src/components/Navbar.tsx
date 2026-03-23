@@ -3,11 +3,12 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useApp } from '@/context/AppContext';
-import { UtensilsCrossed, LayoutDashboard, ShoppingBasket, BarChart3, UserCircle } from 'lucide-react';
+import { UtensilsCrossed, LayoutDashboard, ShoppingBasket, BarChart3, UserCircle, ShieldCheck, LogOut } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { Button } from './ui/button';
 
 const Navbar = () => {
-  const { user } = useApp();
+  const { user, signOut } = useApp();
   const location = useLocation();
 
   const navItems = [
@@ -15,6 +16,7 @@ const Navbar = () => {
     { path: '/marketplace', label: 'Marketplace', icon: ShoppingBasket, roles: ['Admin', 'NGO', 'Beneficiary'] },
     { path: '/inventory', label: 'Inventory', icon: UtensilsCrossed, roles: ['Admin', 'Provider'] },
     { path: '/impact', label: 'Impact', icon: BarChart3, roles: ['Admin', 'Provider', 'NGO', 'Beneficiary', 'Volunteer'] },
+    { path: '/admin', label: 'Admin', icon: ShieldCheck, roles: ['Admin'] },
   ];
 
   return (
@@ -48,11 +50,20 @@ const Navbar = () => {
               <span className="text-[10px] md:text-sm font-medium">Login</span>
             </Link>
           ) : (
-            <div className="flex flex-col md:flex-row items-center gap-1 md:gap-2 p-2 text-emerald-700 font-semibold">
-              <div className="w-6 h-6 rounded-full bg-emerald-100 flex items-center justify-center text-[10px]">
-                {user.name[0]}
+            <div className="flex items-center gap-4">
+              <div className="flex flex-col md:flex-row items-center gap-1 md:gap-2 p-2 text-emerald-700 font-semibold">
+                <div className="w-6 h-6 rounded-full bg-emerald-100 flex items-center justify-center text-[10px]">
+                  {user.name[0]}
+                </div>
+                <span className="text-[10px] md:text-sm hidden md:block">{user.name}</span>
               </div>
-              <span className="text-[10px] md:text-sm hidden md:block">{user.name}</span>
+              <button 
+                onClick={signOut}
+                className="p-2 text-slate-400 hover:text-rose-500 transition-colors"
+                title="Sign Out"
+              >
+                <LogOut className="w-5 h-5" />
+              </button>
             </div>
           )}
         </div>

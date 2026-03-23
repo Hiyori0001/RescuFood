@@ -3,8 +3,15 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { showError } from '@/utils/toast';
+import { Session } from '@supabase/supabase-js';
 
 export type UserRole = 'Admin' | 'Provider' | 'NGO' | 'Beneficiary' | 'Volunteer';
+
+export interface UserProfile {
+  id: string;
+  name: string;
+  role: UserRole;
+}
 
 export interface FoodItem {
   id: string;
@@ -23,27 +30,32 @@ export interface FoodItem {
 }
 
 interface AppState {
-  user: { role: UserRole; name: string; id: string } | null;
+  user: UserProfile | null;
+  session: Session | null;
   inventory: FoodItem[];
   impactMetrics: {
     mealsSaved: number;
     wasteReduced: number;
     communitiesServed: number;
   };
+  loading: boolean;
 }
 
 interface AppContextType extends AppState {
-  setUser: (user: AppState['user']) => void;
-  addFoodItem: (item: Omit<FoodItem, 'id' | 'status' | 'isNearExpiry' | 'distance'>) => Promise<void>;
+  addFoodItem: (item: any) => Promise<void>;
   requestFood: (itemId: string) => Promise<void>;
   completeTransaction: (itemId: string) => Promise<void>;
+  signOut: () => Promise<void>;
+  refreshProfile: () => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<AppState['user']>(null);
+  const [user, setUser] = useState<UserProfile | null>(null);
+  const [session, setSession] = useState<Session | null>(null);
   const [inventory, setInventory] = useState<FoodItem[]>([]);
+  const [loading, setLoading] = useState(true);
   const [impactMetrics, setImpactMetrics] = useState({
     mealsSaved: 0,
     wasteReduced: 0,
@@ -51,9 +63,53 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   });
 
   useEffect(() => {
+    // Handle initial session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      if (session) fetchProfile(session.user.id);
+      setLoading(false);
+    });
+
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+      if (session) {
+        fetchProfile(session.user.id);
+      } else {
+        setUser(null);
+      }
+    });
+
     fetchInventory();
     fetchImpactMetrics();
+
+    return () => subscription.unsubscribe();
   }, []);
+
+  const fetchProfile = async (userId: string) => {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', userId)
+      .single();
+
+    if (error) {
+      console.error('Error fetching profile:', error);
+      return;
+    }
+
+    if (data) {
+      setUser({
+        id: data.id,
+        name: data.full_name || 'User',
+        role: data.role as UserRole,
+      });
+    }
+  };
+
+  const refreshProfile = async () => {
+    if (session?.user.id) await fetchProfile(session.user.id);
+  };
 
   const fetchInventory = async () => {
     const { data, error } = await supabase
@@ -91,21 +147,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       .select('*')
       .single();
 
-    if (error && error.code !== 'PGRST116') {
-      console.error('Error fetching impact metrics:', error);
-      return;
-    }
-
     if (data) {
       setImpactMetrics({
         mealsSaved: data.meals_saved,
         wasteReduced: data.waste_reduced,
-        communities_served: data.communities_served,
+        communitiesServed: data.communities_served,
       });
     }
   };
 
   const addFoodItem = async (item: any) => {
+    if (!session?.user) return;
     const distance = Math.floor(Math.random() * 10) + 1;
     const { error } = await supabase
       .from('inventory')
@@ -114,8 +166,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         type: item.type,
         quantity: item.quantity,
         expiry_date: item.expiryDate,
-        provider_id: item.providerId,
-        provider_name: item.providerName,
+        provider_id: session.user.id,
+        provider_name: user?.name || 'Anonymous',
         location: item.location,
         status: 'Available',
         pricing: item.pricing,
@@ -124,7 +176,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }]);
 
     if (error) {
-      console.error('Supabase error:', error);
       showError('Failed to add item: ' + error.message);
       throw error;
     }
@@ -173,10 +224,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     await fetchImpactMetrics();
   };
 
+  const signOut = async () => {
+    await supabase.auth.signOut();
+    setUser(null);
+    setSession(null);
+  };
+
   return (
     <AppContext.Provider value={{ 
-      user, setUser, inventory, impactMetrics, 
-      addFoodItem, requestFood, completeTransaction
+      user, session, inventory, impactMetrics, loading,
+      addFoodItem, requestFood, completeTransaction, signOut, refreshProfile
     }}>
       {children}
     </AppContext.Provider>
