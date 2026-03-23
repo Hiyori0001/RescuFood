@@ -6,6 +6,7 @@ import { motion } from 'framer-motion';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area } from 'recharts';
 import { Leaf, Users, Utensils, TrendingUp } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 const Impact = () => {
   const { impactMetrics } = useApp();
