@@ -175,16 +175,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (data) {
       setImpactMetrics({
         mealsSaved: data.meals_saved,
-        waste_reduced: data.waste_reduced,
+        wasteReduced: data.waste_reduced,
         communitiesServed: data.communities_served,
       });
     }
   };
 
   const addFoodItem = async (item: any) => {
-    if (!session?.user) return;
+    if (!session?.user) {
+      showError('You must be logged in to list food');
+      return;
+    }
+
     const { error } = await supabase.from('inventory').insert([{
-      ...item,
+      name: item.name,
+      type: item.type,
+      quantity: item.quantity,
+      expiry_date: item.expiryDate, // Map camelCase to snake_case
+      pricing: item.pricing,
+      price: item.price || 0,
+      location: item.location,
       provider_id: session.user.id,
       provider_name: user?.name || 'Anonymous',
       status: 'Available',
@@ -192,14 +202,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }]);
 
     if (error) {
-      showError('Failed to add item');
+      console.error('Supabase error:', error);
+      showError('Failed to add item: ' + error.message);
       throw error;
     }
     await fetchInventory();
   };
 
   const requestFood = async (item: FoodItem) => {
-    if (!session?.user) return;
+    if (!session?.user) {
+      showError('You must be logged in to request food');
+      return;
+    }
 
     // 1. Create Transaction
     const { error: transError } = await supabase.from('transactions').insert([{
