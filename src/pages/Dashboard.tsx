@@ -3,23 +3,16 @@
 import React from 'react';
 import { useApp } from '@/context/AppContext';
 import { motion } from 'framer-motion';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Truck, CheckCircle2, Clock, MapPin, Star } from 'lucide-react';
-import { showSuccess } from '@/utils/toast';
+import { Truck, CheckCircle2, Clock, MapPin, Star, ArrowRight } from 'lucide-react';
 
 const Dashboard = () => {
-  const { user, inventory, completeTransaction } = useApp();
+  const { user, transactions, updateTransactionStatus } = useApp();
 
-  const activeRequests = inventory.filter(item => 
-    item.status === 'Requested' || item.status === 'Allocated'
-  );
-
-  const handleComplete = (id: string) => {
-    completeTransaction(id);
-    showSuccess('Transaction completed! Impact logged.');
-  };
+  const activeTransactions = transactions.filter(t => t.status !== 'Delivered' && t.status !== 'Cancelled');
+  const completedCount = transactions.filter(t => t.status === 'Delivered').length;
 
   if (!user) return <div className="p-20 text-center">Please login to view dashboard.</div>;
 
@@ -34,14 +27,14 @@ const Dashboard = () => {
         <div className="grid md:grid-cols-3 gap-6 mb-10">
           <Card className="border-none shadow-sm rounded-3xl bg-emerald-600 text-white">
             <CardContent className="p-6">
-              <p className="text-emerald-100 text-sm font-medium mb-1">Active Tasks</p>
-              <h3 className="text-4xl font-bold">{activeRequests.length}</h3>
+              <p className="text-emerald-100 text-sm font-medium mb-1">Active Requests</p>
+              <h3 className="text-4xl font-bold">{activeTransactions.length}</h3>
             </CardContent>
           </Card>
           <Card className="border-none shadow-sm rounded-3xl bg-white">
             <CardContent className="p-6">
-              <p className="text-slate-500 text-sm font-medium mb-1">Completed</p>
-              <h3 className="text-4xl font-bold text-slate-900">24</h3>
+              <p className="text-slate-500 text-sm font-medium mb-1">Completed Rescues</p>
+              <h3 className="text-4xl font-bold text-slate-900">{completedCount}</h3>
             </CardContent>
           </Card>
           <Card className="border-none shadow-sm rounded-3xl bg-white">
@@ -61,14 +54,14 @@ const Dashboard = () => {
         </h2>
 
         <div className="space-y-4">
-          {activeRequests.length === 0 ? (
+          {activeTransactions.length === 0 ? (
             <div className="bg-white p-12 rounded-3xl text-center border border-slate-100">
               <p className="text-slate-400">No active requests at the moment.</p>
             </div>
           ) : (
-            activeRequests.map((item) => (
+            activeTransactions.map((t) => (
               <motion.div
-                key={item.id}
+                key={t.id}
                 initial={{ opacity: 0, x: -20 }}
                 animate={{ opacity: 1, x: 0 }}
               >
@@ -80,37 +73,59 @@ const Dashboard = () => {
                       </div>
                       <div>
                         <div className="flex items-center gap-2 mb-1">
-                          <h3 className="font-bold text-slate-900">{item.name}</h3>
-                          <Badge className="bg-amber-100 text-amber-700 border-none">{item.status}</Badge>
+                          <h3 className="font-bold text-slate-900">{t.itemName}</h3>
+                          <Badge className="bg-amber-100 text-amber-700 border-none">{t.status}</Badge>
                         </div>
                         <p className="text-sm text-slate-500 flex items-center gap-1">
-                          <MapPin className="w-3 h-3" /> {item.location} • From: {item.providerName}
+                          <MapPin className="w-3 h-3" /> {t.beneficiaryId === user.id ? 'Requesting from Provider' : 'Requested by Beneficiary'}
                         </p>
                       </div>
                     </div>
 
                     <div className="flex items-center gap-3">
-                      <Button variant="outline" className="rounded-xl border-slate-200">
-                        Track Pickup
-                      </Button>
-                      <Button 
-                        onClick={() => handleComplete(item.id)}
-                        className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl"
-                      >
-                        <CheckCircle2 className="w-4 h-4 mr-2" /> Mark Delivered
-                      </Button>
+                      {t.providerId === user.id && t.status === 'Pending' && (
+                        <Button 
+                          onClick={() => updateTransactionStatus(t.id, t.itemId, 'Approved')}
+                          className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl"
+                        >
+                          Approve Request
+                        </Button>
+                      )}
+                      {t.status === 'Approved' && (
+                        <Button 
+                          onClick={() => updateTransactionStatus(t.id, t.itemId, 'In Transit')}
+                          className="bg-blue-600 hover:bg-blue-700 text-white rounded-xl"
+                        >
+                          Start Delivery
+                        </Button>
+                      )}
+                      {t.status === 'In Transit' && (
+                        <Button 
+                          onClick={() => updateTransactionStatus(t.id, t.itemId, 'Delivered')}
+                          className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl"
+                        >
+                          <CheckCircle2 className="w-4 h-4 mr-2" /> Mark Delivered
+                        </Button>
+                      )}
                     </div>
                   </div>
                   
-                  {/* Step 8: Logistics Progress */}
                   <div className="px-6 pb-6">
                     <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
-                      <div className="h-full bg-emerald-500 w-2/3 transition-all duration-1000" />
+                      <div 
+                        className="h-full bg-emerald-500 transition-all duration-1000" 
+                        style={{ 
+                          width: t.status === 'Pending' ? '25%' : 
+                                 t.status === 'Approved' ? '50%' : 
+                                 t.status === 'In Transit' ? '75%' : '100%' 
+                        }}
+                      />
                     </div>
                     <div className="flex justify-between mt-2 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                      <span>Requested</span>
-                      <span className="text-emerald-600">In Transit</span>
-                      <span>Delivered</span>
+                      <span className={t.status === 'Pending' ? 'text-emerald-600' : ''}>Requested</span>
+                      <span className={t.status === 'Approved' ? 'text-emerald-600' : ''}>Approved</span>
+                      <span className={t.status === 'In Transit' ? 'text-emerald-600' : ''}>In Transit</span>
+                      <span className={t.status === 'Delivered' ? 'text-emerald-600' : ''}>Delivered</span>
                     </div>
                   </div>
                 </Card>

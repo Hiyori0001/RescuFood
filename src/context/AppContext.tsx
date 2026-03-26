@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { showError } from '@/utils/toast';
+import { showError, showSuccess } from '@/utils/toast';
 import { Session } from '@supabase/supabase-js';
 
 export type UserRole = 'Admin' | 'Provider' | 'NGO' | 'Beneficiary' | 'Volunteer';
@@ -29,10 +29,21 @@ export interface FoodItem {
   isNearExpiry: boolean;
 }
 
+export interface Transaction {
+  id: string;
+  itemId: string;
+  itemName: string;
+  providerId: string;
+  beneficiaryId: string;
+  status: string;
+  createdAt: string;
+}
+
 interface AppState {
   user: UserProfile | null;
   session: Session | null;
   inventory: FoodItem[];
+  transactions: Transaction[];
   impactMetrics: {
     mealsSaved: number;
     wasteReduced: number;
@@ -43,8 +54,8 @@ interface AppState {
 
 interface AppContextType extends AppState {
   addFoodItem: (item: any) => Promise<void>;
-  requestFood: (itemId: string) => Promise<void>;
-  completeTransaction: (itemId: string) => Promise<void>;
+  requestFood: (item: FoodItem) => Promise<void>;
+  updateTransactionStatus: (transactionId: string, itemId: string, newStatus: string) => Promise<void>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
 }
@@ -55,6 +66,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [user, setUser] = useState<UserProfile | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [inventory, setInventory] = useState<FoodItem[]>([]);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [impactMetrics, setImpactMetrics] = useState({
     mealsSaved: 0,
@@ -66,7 +78,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const initialize = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       setSession(session);
-      if (session) await fetchProfile(session.user.id);
+      if (session) {
+        await fetchProfile(session.user.id);
+        await fetchTransactions(session.user.id);
+      }
       
       await fetchInventory();
       await fetchImpactMetrics();
@@ -79,8 +94,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setSession(session);
       if (session) {
         fetchProfile(session.user.id);
+        fetchTransactions(session.user.id);
       } else {
         setUser(null);
+        setTransactions([]);
       }
     });
 
@@ -94,10 +111,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       .eq('id', userId)
       .single();
 
-    if (error) {
-      console.error('Error fetching profile:', error);
-      return;
-    }
+    if (error) return;
 
     if (data) {
       setUser({
@@ -108,8 +122,27 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
-  const refreshProfile = async () => {
-    if (session?.user.id) await fetchProfile(session.user.id);
+  const fetchTransactions = async (userId: string) => {
+    const { data, error } = await supabase
+      .from('transactions')
+      .select(`
+        *,
+        inventory (name)
+      `)
+      .or(`provider_id.eq.${userId},beneficiary_id.eq.${userId}`)
+      .order('created_at', { ascending: false });
+
+    if (error) return;
+
+    setTransactions(data.map(t => ({
+      id: t.id,
+      itemId: t.item_id,
+      itemName: t.inventory?.name || 'Unknown Item',
+      providerId: t.provider_id,
+      beneficiaryId: t.beneficiary_id,
+      status: t.status,
+      createdAt: t.created_at
+    })));
   };
 
   const fetchInventory = async () => {
@@ -118,12 +151,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       .select('*')
       .order('created_at', { ascending: false });
 
-    if (error) {
-      console.error('Error fetching inventory:', error);
-      return;
-    }
+    if (error) return;
 
-    const formattedData: FoodItem[] = data.map(item => ({
+    setInventory(data.map(item => ({
       id: item.id,
       name: item.name,
       type: item.type,
@@ -137,21 +167,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       price: item.price,
       distance: item.distance,
       isNearExpiry: new Date(item.expiry_date).getTime() - Date.now() < 72 * 60 * 60 * 1000,
-    }));
-
-    setInventory(formattedData);
+    })));
   };
 
   const fetchImpactMetrics = async () => {
-    const { data, error } = await supabase
-      .from('impact_metrics')
-      .select('*')
-      .single();
-
+    const { data } = await supabase.from('impact_metrics').select('*').single();
     if (data) {
       setImpactMetrics({
         mealsSaved: data.meals_saved,
-        wasteReduced: data.waste_reduced,
+        waste_reduced: data.waste_reduced,
         communitiesServed: data.communities_served,
       });
     }
@@ -159,70 +183,76 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const addFoodItem = async (item: any) => {
     if (!session?.user) return;
-    const distance = Math.floor(Math.random() * 10) + 1;
-    const { error } = await supabase
-      .from('inventory')
-      .insert([{
-        name: item.name,
-        type: item.type,
-        quantity: item.quantity,
-        expiry_date: item.expiry_date,
-        provider_id: session.user.id,
-        provider_name: user?.name || 'Anonymous',
-        location: item.location,
-        status: 'Available',
-        pricing: item.pricing,
-        price: item.price || 0,
-        distance: distance
-      }]);
+    const { error } = await supabase.from('inventory').insert([{
+      ...item,
+      provider_id: session.user.id,
+      provider_name: user?.name || 'Anonymous',
+      status: 'Available',
+      distance: Math.floor(Math.random() * 10) + 1
+    }]);
 
     if (error) {
-      showError('Failed to add item: ' + error.message);
+      showError('Failed to add item');
       throw error;
     }
     await fetchInventory();
   };
 
-  const requestFood = async (itemId: string) => {
-    const { error } = await supabase
-      .from('inventory')
-      .update({ status: 'Requested' })
-      .eq('id', itemId);
+  const requestFood = async (item: FoodItem) => {
+    if (!session?.user) return;
 
-    if (error) {
-      showError('Failed to request food');
+    // 1. Create Transaction
+    const { error: transError } = await supabase.from('transactions').insert([{
+      item_id: item.id,
+      provider_id: item.providerId,
+      beneficiary_id: session.user.id,
+      status: 'Pending'
+    }]);
+
+    if (transError) {
+      showError('Failed to create request');
       return;
     }
+
+    // 2. Update Inventory Status
+    await supabase.from('inventory').update({ status: 'Requested' }).eq('id', item.id);
+    
     await fetchInventory();
+    await fetchTransactions(session.user.id);
+    showSuccess('Request sent successfully!');
   };
 
-  const completeTransaction = async (itemId: string) => {
-    const { error: updateError } = await supabase
-      .from('inventory')
-      .update({ status: 'Delivered' })
-      .eq('id', itemId);
-
-    if (updateError) {
-      showError('Failed to complete transaction');
+  const updateTransactionStatus = async (transactionId: string, itemId: string, newStatus: string) => {
+    const { error } = await supabase.from('transactions').update({ status: newStatus }).eq('id', transactionId);
+    
+    if (error) {
+      showError('Failed to update status');
       return;
     }
 
-    const { data: currentMetrics } = await supabase.from('impact_metrics').select('*').single();
+    // Sync inventory status
+    let invStatus = 'Requested';
+    if (newStatus === 'Delivered') invStatus = 'Delivered';
+    if (newStatus === 'Approved') invStatus = 'Allocated';
     
-    const newMetrics = {
-      meals_saved: (currentMetrics?.meals_saved || 0) + 10,
-      waste_reduced: (currentMetrics?.waste_reduced || 0) + 5,
-      communities_served: (currentMetrics?.communities_served || 0) + 1,
-    };
+    await supabase.from('inventory').update({ status: invStatus }).eq('id', itemId);
 
-    if (currentMetrics) {
-      await supabase.from('impact_metrics').update(newMetrics).eq('id', currentMetrics.id);
-    } else {
-      await supabase.from('impact_metrics').insert([newMetrics]);
+    if (newStatus === 'Delivered') {
+      // Update Impact Metrics
+      const { data: current } = await supabase.from('impact_metrics').select('*').single();
+      const update = {
+        meals_saved: (current?.meals_saved || 0) + 10,
+        waste_reduced: (current?.waste_reduced || 0) + 5,
+        communities_served: (current?.communities_served || 0) + 1,
+      };
+      if (current) await supabase.from('impact_metrics').update(update).eq('id', current.id);
+      else await supabase.from('impact_metrics').insert([update]);
     }
 
+    if (session) await fetchTransactions(session.user.id);
     await fetchInventory();
     await fetchImpactMetrics();
+    showSuccess(`Status updated to ${newStatus}`);
   };
 
   const signOut = async () => {
@@ -231,10 +261,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setSession(null);
   };
 
+  const refreshProfile = async () => {
+    if (session?.user.id) await fetchProfile(session.user.id);
+  };
+
   return (
     <AppContext.Provider value={{ 
-      user, session, inventory, impactMetrics, loading,
-      addFoodItem, requestFood, completeTransaction, signOut, refreshProfile
+      user, session, inventory, transactions, impactMetrics, loading,
+      addFoodItem, requestFood, updateTransactionStatus, signOut, refreshProfile
     }}>
       {children}
     </AppContext.Provider>
