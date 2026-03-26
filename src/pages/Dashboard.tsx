@@ -6,13 +6,17 @@ import { motion } from 'framer-motion';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Truck, CheckCircle2, Clock, MapPin, Star, ArrowRight } from 'lucide-react';
+import { Truck, CheckCircle2, Clock, MapPin, Star, ShieldCheck } from 'lucide-react';
 
 const Dashboard = () => {
-  const { user, transactions, updateTransactionStatus } = useApp();
+  const { user, transactions, updateTransactionStatus, claimDelivery } = useApp();
 
-  const activeTransactions = transactions.filter(t => t.status !== 'Delivered' && t.status !== 'Cancelled');
-  const completedCount = transactions.filter(t => t.status === 'Delivered').length;
+  const activeTransactions = transactions.filter(t => 
+    (t.status !== 'Delivered' && t.status !== 'Cancelled') &&
+    (t.providerId === user?.id || t.beneficiaryId === user?.id || t.volunteerId === user?.id || (user?.role === 'Volunteer' && t.status === 'Approved'))
+  );
+  
+  const completedCount = transactions.filter(t => t.status === 'Delivered' && (t.providerId === user?.id || t.beneficiaryId === user?.id || t.volunteerId === user?.id)).length;
 
   if (!user) return <div className="p-20 text-center">Please login to view dashboard.</div>;
 
@@ -27,7 +31,7 @@ const Dashboard = () => {
         <div className="grid md:grid-cols-3 gap-6 mb-10">
           <Card className="border-none shadow-sm rounded-3xl bg-emerald-600 text-white">
             <CardContent className="p-6">
-              <p className="text-emerald-100 text-sm font-medium mb-1">Active Requests</p>
+              <p className="text-emerald-100 text-sm font-medium mb-1">Active Tasks</p>
               <h3 className="text-4xl font-bold">{activeTransactions.length}</h3>
             </CardContent>
           </Card>
@@ -50,13 +54,13 @@ const Dashboard = () => {
 
         <h2 className="text-xl font-bold text-slate-900 mb-4 flex items-center gap-2">
           <Truck className="w-5 h-5 text-emerald-600" />
-          Active Logistics & Requests
+          {user.role === 'Volunteer' ? 'Available Deliveries & Tasks' : 'Active Logistics & Requests'}
         </h2>
 
         <div className="space-y-4">
           {activeTransactions.length === 0 ? (
             <div className="bg-white p-12 rounded-3xl text-center border border-slate-100">
-              <p className="text-slate-400">No active requests at the moment.</p>
+              <p className="text-slate-400">No active tasks at the moment.</p>
             </div>
           ) : (
             activeTransactions.map((t) => (
@@ -91,15 +95,15 @@ const Dashboard = () => {
                           Approve Request
                         </Button>
                       )}
-                      {t.status === 'Approved' && (
+                      {user.role === 'Volunteer' && t.status === 'Approved' && !t.volunteerId && (
                         <Button 
-                          onClick={() => updateTransactionStatus(t.id, t.itemId, 'In Transit')}
+                          onClick={() => claimDelivery(t.id)}
                           className="bg-blue-600 hover:bg-blue-700 text-white rounded-xl"
                         >
-                          Start Delivery
+                          Claim Delivery
                         </Button>
                       )}
-                      {t.status === 'In Transit' && (
+                      {t.status === 'In Transit' && (t.volunteerId === user.id || t.providerId === user.id) && (
                         <Button 
                           onClick={() => updateTransactionStatus(t.id, t.itemId, 'Delivered')}
                           className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl"

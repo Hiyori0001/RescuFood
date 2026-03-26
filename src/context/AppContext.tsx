@@ -27,6 +27,7 @@ export interface FoodItem {
   price?: number;
   distance: number;
   isNearExpiry: boolean;
+  isSafetyVerified: boolean;
 }
 
 export interface Transaction {
@@ -35,6 +36,7 @@ export interface Transaction {
   itemName: string;
   providerId: string;
   beneficiaryId: string;
+  volunteerId?: string;
   status: string;
   createdAt: string;
 }
@@ -55,6 +57,7 @@ interface AppState {
 interface AppContextType extends AppState {
   addFoodItem: (item: any) => Promise<void>;
   requestFood: (item: FoodItem) => Promise<void>;
+  claimDelivery: (transactionId: string) => Promise<void>;
   updateTransactionStatus: (transactionId: string, itemId: string, newStatus: string) => Promise<void>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
@@ -129,7 +132,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         *,
         inventory (name)
       `)
-      .or(`provider_id.eq.${userId},beneficiary_id.eq.${userId}`)
+      .or(`provider_id.eq.${userId},beneficiary_id.eq.${userId},volunteer_id.eq.${userId},status.eq.Approved`)
       .order('created_at', { ascending: false });
 
     if (error) return;
@@ -140,6 +143,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       itemName: t.inventory?.name || 'Unknown Item',
       providerId: t.provider_id,
       beneficiaryId: t.beneficiary_id,
+      volunteerId: t.volunteer_id,
       status: t.status,
       createdAt: t.created_at
     })));
@@ -167,6 +171,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       price: item.price,
       distance: item.distance,
       isNearExpiry: new Date(item.expiry_date).getTime() - Date.now() < 72 * 60 * 60 * 1000,
+      isSafetyVerified: item.is_safety_verified,
     })));
   };
 
@@ -182,40 +187,33 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const addFoodItem = async (item: any) => {
-    if (!session?.user) {
-      showError('You must be logged in to list food');
-      return;
-    }
+    if (!session?.user) return;
 
     const { error } = await supabase.from('inventory').insert([{
       name: item.name,
       type: item.type,
       quantity: item.quantity,
-      expiry_date: item.expiryDate, // Map camelCase to snake_case
+      expiry_date: item.expiryDate,
       pricing: item.pricing,
       price: item.price || 0,
       location: item.location,
       provider_id: session.user.id,
       provider_name: user?.name || 'Anonymous',
       status: 'Available',
-      distance: Math.floor(Math.random() * 10) + 1
+      distance: Math.floor(Math.random() * 10) + 1,
+      is_safety_verified: item.isSafetyVerified || false
     }]);
 
     if (error) {
-      console.error('Supabase error:', error);
-      showError('Failed to add item: ' + error.message);
+      showError('Failed to add item');
       throw error;
     }
     await fetchInventory();
   };
 
   const requestFood = async (item: FoodItem) => {
-    if (!session?.user) {
-      showError('You must be logged in to request food');
-      return;
-    }
+    if (!session?.user) return;
 
-    // 1. Create Transaction
     const { error: transError } = await supabase.from('transactions').insert([{
       item_id: item.id,
       provider_id: item.providerId,
@@ -228,12 +226,31 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return;
     }
 
-    // 2. Update Inventory Status
     await supabase.from('inventory').update({ status: 'Requested' }).eq('id', item.id);
     
     await fetchInventory();
     await fetchTransactions(session.user.id);
     showSuccess('Request sent successfully!');
+  };
+
+  const claimDelivery = async (transactionId: string) => {
+    if (!session?.user) return;
+
+    const { error } = await supabase
+      .from('transactions')
+      .update({ 
+        volunteer_id: session.user.id,
+        status: 'In Transit' 
+      })
+      .eq('id', transactionId);
+
+    if (error) {
+      showError('Failed to claim delivery');
+      return;
+    }
+
+    showSuccess('Delivery claimed! You are now in transit.');
+    await fetchTransactions(session.user.id);
   };
 
   const updateTransactionStatus = async (transactionId: string, itemId: string, newStatus: string) => {
@@ -244,7 +261,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return;
     }
 
-    // Sync inventory status
     let invStatus = 'Requested';
     if (newStatus === 'Delivered') invStatus = 'Delivered';
     if (newStatus === 'Approved') invStatus = 'Allocated';
@@ -252,7 +268,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     await supabase.from('inventory').update({ status: invStatus }).eq('id', itemId);
 
     if (newStatus === 'Delivered') {
-      // Update Impact Metrics
       const { data: current } = await supabase.from('impact_metrics').select('*').single();
       const update = {
         meals_saved: (current?.meals_saved || 0) + 10,
@@ -282,7 +297,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   return (
     <AppContext.Provider value={{ 
       user, session, inventory, transactions, impactMetrics, loading,
-      addFoodItem, requestFood, updateTransactionStatus, signOut, refreshProfile
+      addFoodItem, requestFood, claimDelivery, updateTransactionStatus, signOut, refreshProfile
     }}>
       {children}
     </AppContext.Provider>
