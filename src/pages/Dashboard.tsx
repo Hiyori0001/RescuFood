@@ -6,22 +6,14 @@ import { motion } from 'framer-motion';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Truck, CheckCircle2, Clock, MapPin, Star, ShieldCheck, User, XCircle, ArrowDownLeft, ArrowUpRight, Loader2 } from 'lucide-react';
+import { Truck, CheckCircle2, Clock, MapPin, Star, ShieldCheck, User, XCircle, ArrowDownLeft, ArrowUpRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const Dashboard = () => {
   const { user, session, loading, transactions, updateTransactionStatus, claimDelivery } = useApp();
 
-  if (loading || (session && !user)) {
-    return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50">
-        <Loader2 className="w-10 h-10 text-emerald-600 animate-spin mb-4" />
-        <p className="text-slate-500 font-medium text-lg">Loading your dashboard...</p>
-      </div>
-    );
-  }
-
-  if (!user) return <div className="p-20 text-center">Please login to view dashboard.</div>;
+  if (loading) return <div className="p-20 text-center">Loading...</div>;
+  if (!session || !user) return <div className="p-20 text-center">Please login to view dashboard.</div>;
 
   // Filter transactions based on involvement
   const incomingRequests = transactions.filter(t => 

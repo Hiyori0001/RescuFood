@@ -78,37 +78,43 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     communitiesServed: 0,
   });
 
+  const fetchProfile = async (userId: string) => {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', userId)
+      .maybeSingle();
+    
+    if (data) {
+      const profile: UserProfile = {
+        id: data.id,
+        name: data.full_name || 'User',
+        role: data.role as UserRole,
+      };
+      setUser(profile);
+      return profile;
+    }
+    return null;
+  };
+
   useEffect(() => {
-    const initialize = async () => {
-      try {
-        const { data: { session: initialSession } } = await supabase.auth.getSession();
-        setSession(initialSession);
-        
-        if (initialSession) {
-          const profile = await syncRoleAndFetchProfile(initialSession.user.id);
-          if (profile) {
-            await fetchTransactions(initialSession.user.id, profile.role);
-          }
-        }
-        
-        await Promise.allSettled([
-          fetchInventory(),
-          fetchImpactMetrics()
-        ]);
-      } catch (error) {
-        console.error("[AppContext] Initialization error:", error);
-      } finally {
-        setLoading(false);
+    // Initial session check
+    supabase.auth.getSession().then(({ data: { session: initialSession } }) => {
+      setSession(initialSession);
+      if (initialSession) {
+        fetchProfile(initialSession.user.id).then(profile => {
+          if (profile) fetchTransactions(initialSession.user.id, profile.role);
+        });
       }
-    };
+      setLoading(false);
+    });
 
-    initialize();
-
+    // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, currentSession) => {
       setSession(currentSession);
       
       if (currentSession) {
-        const profile = await syncRoleAndFetchProfile(currentSession.user.id);
+        const profile = await fetchProfile(currentSession.user.id);
         if (profile) {
           fetchTransactions(currentSession.user.id, profile.role);
         }
@@ -118,73 +124,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
       
       if (event === 'SIGNED_OUT') {
-        setUser(null);
-        setSession(null);
-        setTransactions([]);
         localStorage.removeItem('pending_role');
       }
     });
 
+    fetchInventory();
+    fetchImpactMetrics();
+
     return () => subscription.unsubscribe();
   }, []);
-
-  const syncRoleAndFetchProfile = async (userId: string, retries = 3) => {
-    try {
-      let profileData = null;
-      
-      for (let i = 0; i < retries; i++) {
-        const { data, error } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', userId)
-          .maybeSingle();
-        
-        if (data) {
-          profileData = data;
-          break;
-        }
-        
-        if (i < retries - 1) {
-          await new Promise(resolve => setTimeout(resolve, 1000));
-        }
-      }
-
-      if (!profileData) {
-        const { data: { user: authUser } } = await supabase.auth.getUser();
-        if (authUser) {
-          const pendingRole = localStorage.getItem('pending_role') || 'Beneficiary';
-          const { data: newProfile, error: insertError } = await supabase
-            .from('profiles')
-            .upsert([{
-              id: userId,
-              full_name: authUser.user_metadata?.full_name || authUser.email?.split('@')[0] || 'User',
-              role: pendingRole
-            }])
-            .select()
-            .single();
-          
-          if (!insertError) {
-            profileData = newProfile;
-            localStorage.removeItem('pending_role');
-          }
-        }
-      }
-
-      if (!profileData) return null;
-
-      const profile: UserProfile = {
-        id: profileData.id,
-        name: profileData.full_name || 'User',
-        role: profileData.role as UserRole,
-      };
-      
-      setUser(profile);
-      return profile;
-    } catch (e) {
-      console.error("[AppContext] Profile sync error:", e);
-      return null;
-    }
-  };
 
   const fetchTransactions = async (userId: string, role?: UserRole) => {
     try {
@@ -200,7 +148,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
 
       const { data, error } = await query.order('created_at', { ascending: false });
-
       if (error) throw error;
 
       setTransactions(data.map(t => ({
@@ -214,7 +161,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         createdAt: t.created_at
       })));
     } catch (e) {
-      console.error("[AppContext] Fetch transactions error:", e);
+      console.error("Fetch transactions error:", e);
     }
   };
 
@@ -244,7 +191,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         isSafetyVerified: item.is_safety_verified,
       })));
     } catch (e) {
-      console.error("[AppContext] Fetch inventory error:", e);
+      console.error("Fetch inventory error:", e);
     }
   };
 
@@ -259,7 +206,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         });
       }
     } catch (e) {
-      console.error("[AppContext] Fetch impact metrics error:", e);
+      console.error("Fetch impact metrics error:", e);
     }
   };
 
@@ -365,19 +312,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const signOut = async () => {
     try {
       await supabase.auth.signOut();
-    } catch (e) {
-      console.error("Sign out error:", e);
-    } finally {
       setUser(null);
       setSession(null);
       setTransactions([]);
       localStorage.removeItem('pending_role');
       showSuccess('Signed out successfully');
+    } catch (e) {
+      console.error("Sign out error:", e);
     }
   };
 
   const refreshProfile = async () => {
-    if (session?.user.id) await syncRoleAndFetchProfile(session.user.id);
+    if (session?.user.id) await fetchProfile(session.user.id);
   };
 
   return (
