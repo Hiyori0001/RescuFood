@@ -84,7 +84,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setSession(session);
       if (session) {
         const profile = await syncRoleAndFetchProfile(session.user.id);
-        await fetchTransactions(session.user.id, profile?.role);
+        if (profile) {
+          await fetchTransactions(session.user.id, profile.role);
+        }
       }
       
       await fetchInventory();
@@ -94,13 +96,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     initialize();
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       setSession(session);
       if (session) {
         const profile = await syncRoleAndFetchProfile(session.user.id);
-        fetchTransactions(session.user.id, profile?.role);
+        if (profile) {
+          fetchTransactions(session.user.id, profile.role);
+        }
       } else {
         setUser(null);
+        setTransactions([]);
+      }
+      
+      if (event === 'SIGNED_OUT') {
+        setUser(null);
+        setSession(null);
         setTransactions([]);
       }
     });
@@ -148,9 +158,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         inventory (name)
       `);
 
-    // If not an Admin, filter by involvement
     if (role !== 'Admin') {
-      // We use a simpler filter first to avoid issues with missing columns
       query = query.or(`provider_id.eq.${userId},beneficiary_id.eq.${userId},status.eq.Approved`);
     }
 
@@ -204,8 +212,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (data) {
       setImpactMetrics({
         mealsSaved: data.meals_saved,
-        waste_reduced: data.waste_reduced,
-        communities_served: data.communities_served,
+        wasteReduced: data.waste_reduced,
+        communitiesServed: data.communities_served,
       });
     }
   };
@@ -313,6 +321,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     await supabase.auth.signOut();
     setUser(null);
     setSession(null);
+    localStorage.removeItem('pending_role');
   };
 
   const refreshProfile = async () => {
