@@ -55,7 +55,7 @@ const Dashboard = () => {
     </div>
   );
 
-  // Filter for Providers/Admins
+  // Filter for Providers/Admins: Pending requests for their items
   const incomingRequests = transactions.filter(t => {
     if (t.status !== 'Pending') return false;
     if (t.providerId === user.id) return true;
@@ -63,21 +63,21 @@ const Dashboard = () => {
     return false;
   });
 
-  // Filter for Volunteers: Available tasks (Approved but no volunteer)
+  // Filter for Volunteers: Available tasks (Approved by provider but no volunteer assigned yet)
   const availableTasks = transactions.filter(t => 
     t.status === 'Approved' && !t.volunteerId
   );
 
-  // Filter for Volunteers: My active deliveries
+  // Filter for Volunteers: My active deliveries (Tasks I've claimed)
   const myDeliveries = transactions.filter(t => 
     t.volunteerId === user.id && (t.status === 'Approved' || t.status === 'In Transit')
   );
 
-  // General active logistics for others
+  // General active logistics for others (Providers/Beneficiaries/Admins)
   const activeLogistics = transactions.filter(t => {
     const isActive = t.status === 'Approved' || t.status === 'In Transit';
     if (!isActive) return false;
-    if (user.role === 'Volunteer') return false; 
+    if (user.role === 'Volunteer') return false; // Volunteers use the sections above
     return t.providerId === user.id || t.beneficiaryId === user.id || user.role === 'Admin';
   });
 
