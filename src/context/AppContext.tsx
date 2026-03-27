@@ -135,7 +135,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     try {
       let profileData = null;
       
-      // Retry loop for new signups where the trigger might be slow
       for (let i = 0; i < retries; i++) {
         const { data, error } = await supabase
           .from('profiles')
@@ -153,20 +152,29 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
       }
 
-      if (!profileData) return null;
-
-      const pendingRole = localStorage.getItem('pending_role');
-      if (profileData && pendingRole && profileData.role === 'Beneficiary' && pendingRole !== 'Beneficiary') {
-        const { error: updateError } = await supabase
-          .from('profiles')
-          .update({ role: pendingRole })
-          .eq('id', userId);
-        
-        if (!updateError) {
-          profileData.role = pendingRole;
-          localStorage.removeItem('pending_role');
+      // Fallback: If profile still doesn't exist for an authenticated user, create it
+      if (!profileData) {
+        const { data: { user: authUser } } = await supabase.auth.getUser();
+        if (authUser) {
+          const pendingRole = localStorage.getItem('pending_role') || 'Beneficiary';
+          const { data: newProfile, error: insertError } = await supabase
+            .from('profiles')
+            .insert([{
+              id: userId,
+              full_name: authUser.user_metadata?.full_name || 'User',
+              role: pendingRole
+            }])
+            .select()
+            .single();
+          
+          if (!insertError) {
+            profileData = newProfile;
+            localStorage.removeItem('pending_role');
+          }
         }
       }
+
+      if (!profileData) return null;
 
       const profile: UserProfile = {
         id: profileData.id,

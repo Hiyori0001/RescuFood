@@ -12,16 +12,16 @@ import { UtensilsCrossed, Store, Building2, HeartHandshake, User, ArrowLeft } fr
 import { cn } from '@/lib/utils';
 
 const Auth = () => {
-  const { session, user, loading } = useApp();
+  const { session, loading } = useApp();
   const navigate = useNavigate();
   const [selectedRole, setSelectedRole] = useState<string | null>(null);
 
   useEffect(() => {
-    // Only redirect if we have both a session AND a user profile loaded
-    if (session && user && !loading) {
+    // Redirect immediately if session exists
+    if (session) {
       navigate('/dashboard');
     }
-  }, [session, user, loading, navigate]);
+  }, [session, navigate]);
 
   // Save role to localStorage so AppContext can update the profile after signup
   useEffect(() => {
@@ -37,7 +37,7 @@ const Auth = () => {
     { id: 'Volunteer', label: 'Volunteer', desc: 'Help with logistics and delivery', icon: HeartHandshake, color: 'text-amber-600', bg: 'bg-amber-50' },
   ];
 
-  if (loading) {
+  if (loading && !session) {
     return <div className="min-h-screen flex items-center justify-center bg-slate-50">Loading...</div>;
   }
 
