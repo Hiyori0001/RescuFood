@@ -12,12 +12,26 @@ import { cn } from '@/lib/utils';
 const Dashboard = () => {
   const { user, transactions, updateTransactionStatus, claimDelivery } = useApp();
 
-  const activeTransactions = transactions.filter(t => 
-    (t.status !== 'Delivered' && t.status !== 'Cancelled') &&
-    (t.providerId === user?.id || t.beneficiaryId === user?.id || t.volunteerId === user?.id || (user?.role === 'Volunteer' && t.status === 'Approved'))
-  );
+  // Admins see everything, others see what they are involved in
+  const activeTransactions = transactions.filter(t => {
+    const isFinished = t.status === 'Delivered' || t.status === 'Cancelled';
+    if (isFinished) return false;
+
+    if (user?.role === 'Admin') return true;
+    
+    const isInvolved = t.providerId === user?.id || 
+                       t.beneficiaryId === user?.id || 
+                       t.volunteerId === user?.id;
+    
+    const isAvailableForVolunteer = user?.role === 'Volunteer' && t.status === 'Approved' && !t.volunteerId;
+
+    return isInvolved || isAvailableForVolunteer;
+  });
   
-  const completedCount = transactions.filter(t => t.status === 'Delivered' && (t.providerId === user?.id || t.beneficiaryId === user?.id || t.volunteerId === user?.id)).length;
+  const completedCount = transactions.filter(t => 
+    t.status === 'Delivered' && 
+    (user?.role === 'Admin' || t.providerId === user?.id || t.beneficiaryId === user?.id || t.volunteerId === user?.id)
+  ).length;
 
   if (!user) return <div className="p-20 text-center">Please login to view dashboard.</div>;
 
@@ -84,14 +98,18 @@ const Dashboard = () => {
                           <h3 className="font-bold text-slate-900">{t.itemName}</h3>
                           <Badge className={cn(
                             "border-none",
-                            t.status === 'In Transit' ? "bg-blue-100 text-blue-700" : "bg-amber-100 text-amber-700"
+                            t.status === 'In Transit' ? "bg-blue-100 text-blue-700" : 
+                            t.status === 'Approved' ? "bg-emerald-100 text-emerald-700" :
+                            "bg-amber-100 text-amber-700"
                           )}>
                             {t.status}
                           </Badge>
                         </div>
                         <p className="text-sm text-slate-500 flex items-center gap-1">
                           <MapPin className="w-3 h-3" /> 
-                          {t.status === 'In Transit' ? 'Volunteer is on the way' : (t.beneficiaryId === user.id ? 'Requesting from Provider' : 'Requested by Beneficiary')}
+                          {t.status === 'In Transit' ? 'Volunteer is on the way' : 
+                           t.status === 'Approved' ? 'Ready for pickup' :
+                           (t.beneficiaryId === user.id ? 'Requesting from Provider' : 'Requested by Beneficiary')}
                         </p>
                         {t.status === 'In Transit' && (
                           <p className="text-xs text-blue-600 font-medium mt-1 flex items-center gap-1">
@@ -102,7 +120,7 @@ const Dashboard = () => {
                     </div>
 
                     <div className="flex items-center gap-3">
-                      {t.providerId === user.id && t.status === 'Pending' && (
+                      {(t.providerId === user.id || user.role === 'Admin') && t.status === 'Pending' && (
                         <Button 
                           onClick={() => updateTransactionStatus(t.id, t.itemId, 'Approved')}
                           className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl"
@@ -118,14 +136,14 @@ const Dashboard = () => {
                           Claim Delivery
                         </Button>
                       )}
-                      {t.status === 'In Transit' && (t.volunteerId === user.id || t.providerId === user.id || t.beneficiaryId === user.id) && (
+                      {t.status === 'In Transit' && (t.volunteerId === user.id || t.providerId === user.id || t.beneficiaryId === user.id || user.role === 'Admin') && (
                         <Button 
                           onClick={() => updateTransactionStatus(t.id, t.itemId, 'Delivered')}
                           className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl"
                           disabled={t.volunteerId !== user.id && user.role !== 'Admin'}
                         >
                           <CheckCircle2 className="w-4 h-4 mr-2" /> 
-                          {t.volunteerId === user.id ? 'Mark Delivered' : 'Awaiting Delivery'}
+                          {t.volunteerId === user.id || user.role === 'Admin' ? 'Mark Delivered' : 'Awaiting Delivery'}
                         </Button>
                       )}
                     </div>
