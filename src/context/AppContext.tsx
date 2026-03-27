@@ -80,10 +80,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   useEffect(() => {
     const initialize = async () => {
-      // Safety timeout to ensure loading is always cleared
-      const timeoutId = setTimeout(() => {
-        setLoading(false);
-      }, 5000);
+      const timeoutId = setTimeout(() => setLoading(false), 5000);
 
       try {
         const { data: { session: initialSession } } = await supabase.auth.getSession();
@@ -96,7 +93,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           }
         }
         
-        // Fetch public data
         await Promise.allSettled([
           fetchInventory(),
           fetchImpactMetrics()
@@ -135,33 +131,47 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return () => subscription.unsubscribe();
   }, []);
 
-  const syncRoleAndFetchProfile = async (userId: string) => {
+  const syncRoleAndFetchProfile = async (userId: string, retries = 3) => {
     try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', userId)
-        .maybeSingle();
+      let profileData = null;
+      
+      // Retry loop for new signups where the trigger might be slow
+      for (let i = 0; i < retries; i++) {
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', userId)
+          .maybeSingle();
+        
+        if (data) {
+          profileData = data;
+          break;
+        }
+        
+        if (i < retries - 1) {
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+      }
 
-      if (error || !data) return null;
+      if (!profileData) return null;
 
       const pendingRole = localStorage.getItem('pending_role');
-      if (data && pendingRole && data.role === 'Beneficiary' && pendingRole !== 'Beneficiary') {
+      if (profileData && pendingRole && profileData.role === 'Beneficiary' && pendingRole !== 'Beneficiary') {
         const { error: updateError } = await supabase
           .from('profiles')
           .update({ role: pendingRole })
           .eq('id', userId);
         
         if (!updateError) {
-          data.role = pendingRole;
+          profileData.role = pendingRole;
           localStorage.removeItem('pending_role');
         }
       }
 
       const profile: UserProfile = {
-        id: data.id,
-        name: data.full_name || 'User',
-        role: data.role as UserRole,
+        id: profileData.id,
+        name: profileData.full_name || 'User',
+        role: profileData.role as UserRole,
       };
       
       setUser(profile);
