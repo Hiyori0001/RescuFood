@@ -48,11 +48,16 @@ const Dashboard = () => {
   );
 
   // 1. Incoming Requests (For Providers to Accept/Reject)
-  const incomingRequests = transactions.filter(t => 
-    (t.providerId === user.id || user.role === 'Admin') && t.status === 'Pending'
-  );
+  // Logic: Show if status is Pending AND (I am the provider OR (I am an admin AND I am NOT the beneficiary))
+  const incomingRequests = transactions.filter(t => {
+    if (t.status !== 'Pending') return false;
+    if (t.providerId === user.id) return true;
+    if (user.role === 'Admin' && t.beneficiaryId !== user.id) return true;
+    return false;
+  });
 
   // 2. My Active Requests (For Beneficiaries/NGOs to track)
+  // Logic: Show if I am the beneficiary and it's not finished
   const myRequests = transactions.filter(t => 
     t.beneficiaryId === user.id && t.status !== 'Delivered' && t.status !== 'Cancelled'
   );
@@ -138,7 +143,9 @@ const Dashboard = () => {
                               </div>
                               <div>
                                 <h3 className="font-bold text-slate-900">{t.itemName}</h3>
-                                <p className="text-sm text-slate-500">Requested by: {t.beneficiaryId === user.id ? 'You' : 'A Beneficiary'}</p>
+                                <p className="text-sm text-slate-500">
+                                  {t.providerId === user.id ? 'Requested from your listing' : 'Global Request'}
+                                </p>
                                 <p className="text-[10px] text-slate-400 mt-1 uppercase font-bold">{new Date(t.createdAt).toLocaleDateString()}</p>
                               </div>
                             </div>
