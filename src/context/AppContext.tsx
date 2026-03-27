@@ -97,7 +97,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setTransactions(data.map(t => ({
         id: t.id,
         itemId: t.item_id,
-        itemName: t.inventory?.name || 'Unknown Item',
+        itemName: Array.isArray(t.inventory) ? t.inventory[0]?.name : t.inventory?.name || 'Unknown Item',
         providerId: t.provider_id,
         beneficiaryId: t.beneficiary_id,
         volunteerId: t.volunteer_id,
@@ -129,7 +129,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         fetchTransactions(userId, profile.role);
         return profile;
       } else {
-        // Fallback: Create a temporary profile if DB is slow or missing
         const { data: { user: authUser } } = await supabase.auth.getUser();
         if (authUser) {
           const tempProfile: UserProfile = {
@@ -201,7 +200,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (!isMounted) return;
 
         setSession(initialSession);
-        // Stop loading as soon as we know the session status
         setLoading(false);
 
         if (initialSession) {
@@ -216,6 +214,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     initializeAuth();
     fetchInventory();
     fetchImpactMetrics();
+
+    // Real-time subscriptions
+    const inventoryChannel = supabase
+      .channel('inventory-changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'inventory' }, () => {
+        fetchInventory();
+      })
+      .subscribe();
+
+    const transactionsChannel = supabase
+      .channel('transaction-changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'transactions' }, () => {
+        if (session?.user.id) {
+          fetchTransactions(session.user.id, user?.role);
+        }
+      })
+      .subscribe();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, currentSession) => {
       if (!isMounted) return;
@@ -237,8 +252,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return () => {
       isMounted = false;
       subscription.unsubscribe();
+      supabase.removeChannel(inventoryChannel);
+      supabase.removeChannel(transactionsChannel);
     };
-  }, [fetchProfile, fetchInventory, fetchImpactMetrics]);
+  }, [fetchProfile, fetchInventory, fetchImpactMetrics, session?.user.id, user?.role, fetchTransactions]);
 
   const addFoodItem = async (item: any) => {
     if (!session?.user) return;
@@ -262,7 +279,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       showError('Failed to add item');
       throw error;
     }
-    await fetchInventory();
   };
 
   const requestFood = async (item: FoodItem) => {
@@ -281,9 +297,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
 
     await supabase.from('inventory').update({ status: 'Requested' }).eq('id', item.id);
-    
-    await fetchInventory();
-    if (user) await fetchTransactions(session.user.id, user.role);
     showSuccess('Request sent successfully!');
   };
 
@@ -304,7 +317,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
 
     showSuccess('Delivery claimed! You are now in transit.');
-    if (user) await fetchTransactions(session.user.id, user.role);
   };
 
   const updateTransactionStatus = async (transactionId: string, itemId: string, newStatus: string) => {
@@ -333,21 +345,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       else await supabase.from('impact_metrics').insert([update]);
     }
 
-    if (session && user) await fetchTransactions(session.user.id, user.role);
-    await fetchInventory();
-    await fetchImpactMetrics();
     showSuccess(`Status updated to ${newStatus}`);
   };
 
   const signOut = async () => {
     try {
-      // Clear local state IMMEDIATELY
       setUser(null);
       setSession(null);
       setTransactions([]);
       localStorage.removeItem('pending_role');
-      
-      // Then call Supabase
       await supabase.auth.signOut();
       showSuccess('Signed out successfully');
     } catch (e) {
