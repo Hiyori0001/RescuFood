@@ -8,15 +8,18 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Plus, Clock, AlertTriangle, ChefHat, ShieldCheck, CheckCircle2 } from 'lucide-react';
+import { Plus, Clock, AlertTriangle, ChefHat, ShieldCheck, CheckCircle2, ListFilter } from 'lucide-react';
 import { showSuccess } from '@/utils/toast';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
+import { cn } from '@/lib/utils';
 
 const Inventory = () => {
   const { user, inventory, addFoodItem } = useApp();
   const [isAdding, setIsAdding] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [viewMode, setViewMode] = useState<'Mine' | 'All'>(user?.role === 'Admin' ? 'All' : 'Mine');
+  
   const [formData, setFormData] = useState({
     name: '',
     type: 'Raw' as 'Raw' | 'Cooked',
@@ -51,7 +54,9 @@ const Inventory = () => {
     }
   };
 
-  const myInventory = inventory.filter(item => item.providerId === user?.id);
+  const displayInventory = viewMode === 'All' 
+    ? inventory 
+    : inventory.filter(item => item.providerId === user?.id);
 
   const getRecipeRecommendation = (ingredient: string) => {
     const recipes: Record<string, string> = {
@@ -66,17 +71,49 @@ const Inventory = () => {
   return (
     <div className="min-h-screen bg-slate-50 p-6 pb-24 md:pt-24">
       <div className="max-w-4xl mx-auto">
-        <div className="flex items-center justify-between mb-8">
+        <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
           <div>
-            <h1 className="text-3xl font-bold text-slate-900">My Inventory</h1>
-            <p className="text-slate-500">Manage your surplus food listings</p>
+            <h1 className="text-3xl font-bold text-slate-900">
+              {viewMode === 'All' ? 'Global Inventory' : 'My Inventory'}
+            </h1>
+            <p className="text-slate-500">
+              {viewMode === 'All' ? 'Monitoring all food listings across the platform' : 'Manage your surplus food listings'}
+            </p>
           </div>
-          <Button 
-            onClick={() => setIsAdding(!isAdding)}
-            className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl"
-          >
-            {isAdding ? 'Cancel' : <><Plus className="w-4 h-4 mr-2" /> List Food</>}
-          </Button>
+          
+          <div className="flex items-center gap-3">
+            {user?.role === 'Admin' && (
+              <div className="flex bg-white p-1 rounded-xl shadow-sm border border-slate-100">
+                <button
+                  onClick={() => setViewMode('Mine')}
+                  className={cn(
+                    "px-4 py-2 rounded-lg text-xs font-bold transition-all",
+                    viewMode === 'Mine' ? "bg-emerald-600 text-white shadow-md" : "text-slate-500 hover:bg-slate-50"
+                  )}
+                >
+                  Mine
+                </button>
+                <button
+                  onClick={() => setViewMode('All')}
+                  className={cn(
+                    "px-4 py-2 rounded-lg text-xs font-bold transition-all",
+                    viewMode === 'All' ? "bg-emerald-600 text-white shadow-md" : "text-slate-500 hover:bg-slate-50"
+                  )}
+                >
+                  All
+                </button>
+              </div>
+            )}
+            
+            {(user?.role === 'Provider' || user?.role === 'Admin') && (
+              <Button 
+                onClick={() => setIsAdding(!isAdding)}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl"
+              >
+                {isAdding ? 'Cancel' : <><Plus className="w-4 h-4 mr-2" /> List Food</>}
+              </Button>
+            )}
+          </div>
         </div>
 
         {isAdding && (
@@ -190,12 +227,15 @@ const Inventory = () => {
         )}
 
         <div className="grid gap-4">
-          {myInventory.length === 0 ? (
+          {displayInventory.length === 0 ? (
             <div className="text-center py-20 bg-white rounded-3xl border-2 border-dashed border-slate-200">
-              <p className="text-slate-400">No items listed yet.</p>
+              <p className="text-slate-400">No items found in this view.</p>
+              {viewMode === 'Mine' && (
+                <p className="text-xs text-slate-400 mt-2">Click "List Food" to add your first surplus item.</p>
+              )}
             </div>
           ) : (
-            myInventory.map((item) => (
+            displayInventory.map((item) => (
               <Card key={item.id} className="border-none shadow-sm rounded-2xl overflow-hidden">
                 <div className="flex flex-col md:flex-row">
                   <div className="p-6 flex-1">
@@ -208,9 +248,16 @@ const Inventory = () => {
                           </Badge>
                         )}
                       </div>
-                      <Badge variant={item.status === 'Available' ? 'outline' : 'secondary'} className="rounded-full">
-                        {item.status}
-                      </Badge>
+                      <div className="flex items-center gap-2">
+                        {viewMode === 'All' && (
+                          <span className="text-[10px] font-bold text-slate-400 uppercase bg-slate-100 px-2 py-1 rounded">
+                            By: {item.providerName}
+                          </span>
+                        )}
+                        <Badge variant={item.status === 'Available' ? 'outline' : 'secondary'} className="rounded-full">
+                          {item.status}
+                        </Badge>
+                      </div>
                     </div>
                     <div className="flex flex-wrap gap-4 text-sm text-slate-500">
                       <span className="flex items-center gap-1"><Clock className="w-4 h-4" /> Expires: {new Date(item.expiryDate).toLocaleString()}</span>
