@@ -22,6 +22,13 @@ const Auth = () => {
     }
   }, [session, navigate]);
 
+  // Save role to localStorage so AppContext can update the profile after signup
+  useEffect(() => {
+    if (selectedRole) {
+      localStorage.setItem('pending_role', selectedRole);
+    }
+  }, [selectedRole]);
+
   const roles = [
     { id: 'Provider', label: 'Food Provider', desc: 'Restaurants, Hotels, Groceries', icon: Store, color: 'text-blue-600', bg: 'bg-blue-50' },
     { id: 'NGO', label: 'NGO / Charity', desc: 'Distribute food to those in need', icon: Building2, color: 'text-emerald-600', bg: 'bg-emerald-50' },
@@ -112,13 +119,6 @@ const Auth = () => {
                       type: 'text',
                     }
                   ]}
-                  // We pass the role in the metadata
-                  queryParams={{
-                    role: selectedRole
-                  }}
-                  // Note: Supabase Auth UI doesn't directly support passing metadata 
-                  // through props easily for all versions, so we'll ensure the 
-                  // handle_new_user function is robust.
                 />
               </Card>
             </motion.div>

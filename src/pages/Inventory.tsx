@@ -8,9 +8,10 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Plus, Clock, AlertTriangle, ChefHat } from 'lucide-react';
+import { Plus, Clock, AlertTriangle, ChefHat, ShieldCheck, CheckCircle2 } from 'lucide-react';
 import { showSuccess } from '@/utils/toast';
 import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
 
 const Inventory = () => {
   const { user, inventory, addFoodItem } = useApp();
@@ -23,10 +24,15 @@ const Inventory = () => {
     expiryDate: '',
     pricing: 'Donated' as 'Donated' | 'Base-price' | 'Discounted',
     price: 0,
+    isSafetyVerified: false,
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!formData.isSafetyVerified) {
+      alert("Please verify food safety standards before listing.");
+      return;
+    }
     setIsSubmitting(true);
     try {
       await addFoodItem({
@@ -37,9 +43,9 @@ const Inventory = () => {
       });
       showSuccess('Food item listed successfully!');
       setIsAdding(false);
-      setFormData({ name: '', type: 'Raw', quantity: '', expiryDate: '', pricing: 'Donated', price: 0 });
+      setFormData({ name: '', type: 'Raw', quantity: '', expiryDate: '', pricing: 'Donated', price: 0, isSafetyVerified: false });
     } catch (error) {
-      // Error is handled in addFoodItem with showError
+      // Error is handled in addFoodItem
     } finally {
       setIsSubmitting(false);
     }
@@ -147,9 +153,32 @@ const Inventory = () => {
                       />
                     </div>
                   )}
+
+                  <div className="md:col-span-2 p-4 bg-emerald-50 rounded-2xl border border-emerald-100">
+                    <div className="flex items-start gap-3">
+                      <Checkbox 
+                        id="safety" 
+                        checked={formData.isSafetyVerified}
+                        onCheckedChange={(checked) => setFormData({...formData, isSafetyVerified: !!checked})}
+                        className="mt-1"
+                      />
+                      <div className="grid gap-1.5 leading-none">
+                        <label
+                          htmlFor="safety"
+                          className="text-sm font-bold text-emerald-900 leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                        >
+                          Safety Verification Checklist
+                        </label>
+                        <p className="text-xs text-emerald-700">
+                          I confirm this food is stored at correct temperatures, handled with hygiene, and is fit for consumption.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
                   <Button 
                     type="submit" 
-                    disabled={isSubmitting}
+                    disabled={isSubmitting || !formData.isSafetyVerified}
                     className="md:col-span-2 bg-emerald-600 hover:bg-emerald-700 text-white py-6 rounded-xl font-bold"
                   >
                     {isSubmitting ? 'Listing...' : 'Confirm Listing'}
@@ -171,7 +200,14 @@ const Inventory = () => {
                 <div className="flex flex-col md:flex-row">
                   <div className="p-6 flex-1">
                     <div className="flex items-center justify-between mb-2">
-                      <h3 className="text-xl font-bold text-slate-900">{item.name}</h3>
+                      <div className="flex items-center gap-2">
+                        <h3 className="text-xl font-bold text-slate-900">{item.name}</h3>
+                        {item.isSafetyVerified && (
+                          <Badge className="bg-emerald-100 text-emerald-700 border-none flex items-center gap-1">
+                            <CheckCircle2 className="w-3 h-3" /> Verified
+                          </Badge>
+                        )}
+                      </div>
                       <Badge variant={item.status === 'Available' ? 'outline' : 'secondary'} className="rounded-full">
                         {item.status}
                       </Badge>

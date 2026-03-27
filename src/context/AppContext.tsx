@@ -82,7 +82,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const { data: { session } } = await supabase.auth.getSession();
       setSession(session);
       if (session) {
-        await fetchProfile(session.user.id);
+        await syncRoleAndFetchProfile(session.user.id);
         await fetchTransactions(session.user.id);
       }
       
@@ -96,7 +96,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
       if (session) {
-        fetchProfile(session.user.id);
+        syncRoleAndFetchProfile(session.user.id);
         fetchTransactions(session.user.id);
       } else {
         setUser(null);
@@ -107,7 +107,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return () => subscription.unsubscribe();
   }, []);
 
-  const fetchProfile = async (userId: string) => {
+  const syncRoleAndFetchProfile = async (userId: string) => {
     const { data, error } = await supabase
       .from('profiles')
       .select('*')
@@ -115,6 +115,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       .single();
 
     if (error) return;
+
+    // If there's a pending role in localStorage, update the profile
+    const pendingRole = localStorage.getItem('pending_role');
+    if (data && pendingRole && data.role === 'Beneficiary' && pendingRole !== 'Beneficiary') {
+      const { error: updateError } = await supabase
+        .from('profiles')
+        .update({ role: pendingRole })
+        .eq('id', userId);
+      
+      if (!updateError) {
+        data.role = pendingRole;
+        localStorage.removeItem('pending_role');
+      }
+    }
 
     if (data) {
       setUser({
@@ -291,7 +305,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const refreshProfile = async () => {
-    if (session?.user.id) await fetchProfile(session.user.id);
+    if (session?.user.id) await syncRoleAndFetchProfile(session.user.id);
   };
 
   return (
