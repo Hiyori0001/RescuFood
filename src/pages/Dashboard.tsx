@@ -18,7 +18,8 @@ import {
   ArrowUpRight,
   Package,
   History,
-  AlertCircle
+  AlertCircle,
+  ChevronRight
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -47,8 +48,6 @@ const Dashboard = () => {
     </div>
   );
 
-  // 1. Incoming Requests (For Providers to Accept/Reject)
-  // Logic: Show if status is Pending AND (I am the provider OR (I am an admin AND I am NOT the beneficiary))
   const incomingRequests = transactions.filter(t => {
     if (t.status !== 'Pending') return false;
     if (t.providerId === user.id) return true;
@@ -56,13 +55,10 @@ const Dashboard = () => {
     return false;
   });
 
-  // 2. My Active Requests (For Beneficiaries/NGOs to track)
-  // Logic: Show if I am the beneficiary and it's not finished
   const myRequests = transactions.filter(t => 
     t.beneficiaryId === user.id && t.status !== 'Delivered' && t.status !== 'Cancelled'
   );
 
-  // 3. Active Deliveries (For Volunteers or involved parties)
   const activeDeliveries = transactions.filter(t => {
     const isActive = t.status === 'Approved' || t.status === 'In Transit';
     if (!isActive) return false;
@@ -72,7 +68,6 @@ const Dashboard = () => {
     return t.providerId === user.id || t.beneficiaryId === user.id;
   });
 
-  // 4. History
   const history = transactions.filter(t => 
     t.status === 'Delivered' || t.status === 'Cancelled'
   ).slice(0, 5);
@@ -112,10 +107,9 @@ const Dashboard = () => {
         </header>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Left Column: Actions & Requests */}
           <div className="lg:col-span-2 space-y-8">
             
-            {/* SECTION: Incoming Requests (Provider/Admin Only) */}
+            {/* SECTION: Incoming Requests */}
             {(user.role === 'Provider' || user.role === 'Admin') && (
               <section>
                 <div className="flex items-center justify-between mb-4">
@@ -173,119 +167,84 @@ const Dashboard = () => {
               </section>
             )}
 
-            {/* SECTION: My Active Requests (Beneficiary/NGO Only) */}
-            {(user.role === 'Beneficiary' || user.role === 'NGO' || user.role === 'Admin') && (
-              <section>
-                <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
-                    <ArrowUpRight className="w-5 h-5 text-blue-600" />
-                    My Requested Items
-                  </h2>
-                  <Badge className="bg-blue-100 text-blue-700">{myRequests.length}</Badge>
-                </div>
-                
-                <div className="space-y-4">
-                  {myRequests.length === 0 ? (
-                    <Card className="border-none shadow-sm rounded-3xl p-8 text-center bg-white/50 border border-dashed border-slate-200">
-                      <p className="text-slate-400">You haven't requested any items yet.</p>
-                    </Card>
-                  ) : (
-                    myRequests.map((t) => (
-                      <motion.div key={t.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
-                        <Card className="border-none shadow-sm rounded-2xl overflow-hidden bg-white">
-                          <div className="p-6">
-                            <div className="flex justify-between items-start mb-4">
-                              <div>
-                                <h3 className="font-bold text-slate-900 text-lg">{t.itemName}</h3>
-                                <p className="text-sm text-slate-500">Status: <span className="font-bold text-blue-600 uppercase text-xs">{t.status}</span></p>
-                              </div>
-                              <Badge className={cn(
-                                "rounded-full px-3 py-1",
-                                t.status === 'Pending' ? "bg-amber-100 text-amber-700" : "bg-blue-100 text-blue-700"
-                              )}>
-                                {t.status === 'Pending' ? 'Awaiting Approval' : 'Approved'}
-                              </Badge>
-                            </div>
-                            
-                            <div className="relative pt-2">
-                              <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
-                                <div 
-                                  className="h-full bg-blue-500 transition-all duration-500"
-                                  style={{ width: t.status === 'Pending' ? '33%' : t.status === 'Approved' ? '66%' : '100%' }}
-                                />
-                              </div>
-                              <div className="flex justify-between mt-2 text-[10px] font-bold text-slate-400 uppercase">
-                                <span>Requested</span>
-                                <span>Accepted</span>
-                                <span>In Transit</span>
-                              </div>
-                            </div>
-                          </div>
-                        </Card>
-                      </motion.div>
-                    ))
-                  )}
-                </div>
-              </section>
-            )}
-
-            {/* SECTION: Active Logistics (Volunteers & Involved Parties) */}
+            {/* SECTION: Active Logistics (The "What's Next" Section) */}
             <section>
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
                   <Truck className="w-5 h-5 text-emerald-600" />
-                  Active Logistics
+                  Active Logistics & Delivery
                 </h2>
+                <Badge className="bg-emerald-100 text-emerald-700">{activeDeliveries.length}</Badge>
               </div>
               
               <div className="space-y-4">
                 {activeDeliveries.length === 0 ? (
                   <Card className="border-none shadow-sm rounded-3xl p-8 text-center bg-white/50 border border-dashed border-slate-200">
-                    <p className="text-slate-400">No active deliveries in progress.</p>
+                    <p className="text-slate-400">No active deliveries in progress. Once a request is accepted, it will appear here.</p>
                   </Card>
                 ) : (
                   activeDeliveries.map((t) => (
                     <motion.div key={t.id} initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }}>
                       <Card className="border-none shadow-md rounded-2xl overflow-hidden bg-white">
-                        <div className="p-6 flex flex-col md:flex-row md:items-center justify-between gap-6">
-                          <div className="flex items-start gap-4">
-                            <div className={cn(
-                              "w-12 h-12 rounded-2xl flex items-center justify-center shrink-0",
-                              t.status === 'In Transit' ? "bg-blue-50" : "bg-emerald-50"
-                            )}>
-                              {t.status === 'In Transit' ? <Truck className="w-6 h-6 text-blue-600" /> : <Package className="w-6 h-6 text-emerald-600" />}
-                            </div>
-                            <div>
-                              <h3 className="font-bold text-slate-900">{t.itemName}</h3>
-                              <p className="text-sm text-slate-500 flex items-center gap-1">
-                                <MapPin className="w-3 h-3" /> 
-                                {t.status === 'In Transit' ? 'On the way to destination' : 'Ready for pickup'}
-                              </p>
-                              {t.volunteerId && (
-                                <p className="text-xs text-blue-600 font-medium mt-1">
-                                  Volunteer: {t.volunteerId === user.id ? 'You' : 'Assigned'}
+                        <div className="p-6">
+                          <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-6">
+                            <div className="flex items-start gap-4">
+                              <div className={cn(
+                                "w-12 h-12 rounded-2xl flex items-center justify-center shrink-0",
+                                t.status === 'In Transit' ? "bg-blue-50" : "bg-emerald-50"
+                              )}>
+                                {t.status === 'In Transit' ? <Truck className="w-6 h-6 text-blue-600" /> : <Package className="w-6 h-6 text-emerald-600" />}
+                              </div>
+                              <div>
+                                <h3 className="font-bold text-slate-900">{t.itemName}</h3>
+                                <p className="text-sm text-slate-500 flex items-center gap-1">
+                                  <MapPin className="w-3 h-3" /> 
+                                  {t.status === 'In Transit' ? 'On the way to destination' : 'Waiting for a volunteer to pick up'}
                                 </p>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-2">
+                              {user.role === 'Volunteer' && t.status === 'Approved' && !t.volunteerId && (
+                                <Button 
+                                  onClick={() => claimDelivery(t.id)}
+                                  className="bg-blue-600 hover:bg-blue-700 text-white rounded-xl"
+                                >
+                                  Claim Delivery
+                                </Button>
+                              )}
+                              {(t.volunteerId === user.id || user.role === 'Admin') && t.status === 'In Transit' && (
+                                <Button 
+                                  onClick={() => updateTransactionStatus(t.id, t.itemId, 'Delivered')}
+                                  className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl"
+                                >
+                                  <CheckCircle2 className="w-4 h-4 mr-2" /> Mark Delivered
+                                </Button>
                               )}
                             </div>
                           </div>
 
-                          <div className="flex items-center gap-2">
-                            {user.role === 'Volunteer' && t.status === 'Approved' && !t.volunteerId && (
-                              <Button 
-                                onClick={() => claimDelivery(t.id)}
-                                className="bg-blue-600 hover:bg-blue-700 text-white rounded-xl"
-                              >
-                                Claim Delivery
-                              </Button>
-                            )}
-                            {(t.volunteerId === user.id || user.role === 'Admin') && t.status === 'In Transit' && (
-                              <Button 
-                                onClick={() => updateTransactionStatus(t.id, t.itemId, 'Delivered')}
-                                className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl"
-                              >
-                                <CheckCircle2 className="w-4 h-4 mr-2" /> Mark Delivered
-                              </Button>
-                            )}
+                          {/* Logistics Timeline */}
+                          <div className="grid grid-cols-3 gap-2 relative">
+                            <div className="absolute top-4 left-0 w-full h-0.5 bg-slate-100 -z-0" />
+                            {[
+                              { label: 'Accepted', active: true, icon: CheckCircle2 },
+                              { label: 'In Transit', active: t.status === 'In Transit', icon: Truck },
+                              { label: 'Delivered', active: t.status === 'Delivered', icon: Package }
+                            ].map((step, i) => (
+                              <div key={i} className="flex flex-col items-center text-center relative z-10">
+                                <div className={cn(
+                                  "w-8 h-8 rounded-full flex items-center justify-center mb-2 border-2",
+                                  step.active ? "bg-emerald-600 border-emerald-600 text-white" : "bg-white border-slate-200 text-slate-300"
+                                )}>
+                                  <step.icon className="w-4 h-4" />
+                                </div>
+                                <span className={cn(
+                                  "text-[10px] font-bold uppercase tracking-wider",
+                                  step.active ? "text-emerald-600" : "text-slate-400"
+                                )}>{step.label}</span>
+                              </div>
+                            ))}
                           </div>
                         </div>
                       </Card>
@@ -296,7 +255,6 @@ const Dashboard = () => {
             </section>
           </div>
 
-          {/* Right Column: History & Stats */}
           <div className="space-y-8">
             <section>
               <h2 className="text-xl font-bold text-slate-900 mb-4 flex items-center gap-2">
