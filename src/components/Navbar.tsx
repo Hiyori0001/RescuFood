@@ -5,7 +5,6 @@ import { Link, useLocation } from 'react-router-dom';
 import { useApp } from '@/context/AppContext';
 import { UtensilsCrossed, LayoutDashboard, ShoppingBasket, BarChart3, UserCircle, ShieldCheck, LogOut } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { Button } from './ui/button';
 
 const Navbar = () => {
   const { user, signOut } = useApp();
@@ -13,7 +12,7 @@ const Navbar = () => {
 
   const navItems = [
     { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['Admin', 'Provider', 'NGO', 'Beneficiary', 'Volunteer'] },
-    { path: '/marketplace', label: 'Marketplace', icon: ShoppingBasket, roles: ['Admin', 'NGO', 'Beneficiary'] },
+    { path: '/marketplace', label: 'Marketplace', icon: ShoppingBasket, roles: ['Admin', 'Provider', 'NGO', 'Beneficiary', 'Volunteer'] },
     { path: '/inventory', label: 'Inventory', icon: UtensilsCrossed, roles: ['Admin', 'Provider'] },
     { path: '/impact', label: 'Impact', icon: BarChart3, roles: ['Admin', 'Provider', 'NGO', 'Beneficiary', 'Volunteer'] },
     { path: '/admin', label: 'Admin', icon: ShieldCheck, roles: ['Admin'] },
