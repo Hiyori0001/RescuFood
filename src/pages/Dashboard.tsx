@@ -6,16 +6,24 @@ import { motion } from 'framer-motion';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Truck, CheckCircle2, Clock, MapPin, Star, ShieldCheck, User, XCircle, ArrowDownLeft, ArrowUpRight } from 'lucide-react';
+import { Truck, CheckCircle2, Clock, MapPin, Star, ShieldCheck, User, XCircle, ArrowDownLeft, ArrowUpRight, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const Dashboard = () => {
-  const { user, transactions, updateTransactionStatus, claimDelivery } = useApp();
+  const { user, session, loading, transactions, updateTransactionStatus, claimDelivery } = useApp();
+
+  if (loading || (session && !user)) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50">
+        <Loader2 className="w-10 h-10 text-emerald-600 animate-spin mb-4" />
+        <p className="text-slate-500 font-medium text-lg">Loading your dashboard...</p>
+      </div>
+    );
+  }
 
   if (!user) return <div className="p-20 text-center">Please login to view dashboard.</div>;
 
   // Filter transactions based on involvement
-  // Admins see ALL pending requests, Providers see only theirs
   const incomingRequests = transactions.filter(t => 
     (t.providerId === user.id || user.role === 'Admin') && t.status === 'Pending'
   );
@@ -24,7 +32,6 @@ const Dashboard = () => {
     const isFinished = t.status === 'Delivered' || t.status === 'Cancelled';
     if (isFinished) return false;
 
-    // Don't show pending incoming requests here, they have their own section
     if ((t.providerId === user.id || user.role === 'Admin') && t.status === 'Pending') return false;
 
     if (user.role === 'Admin') return true;
@@ -69,7 +76,6 @@ const Dashboard = () => {
           </div>
         </header>
 
-        {/* Incoming Requests Section */}
         {incomingRequests.length > 0 && (
           <section className="mb-10">
             <h2 className="text-xl font-bold text-slate-900 mb-4 flex items-center gap-2">

@@ -7,7 +7,7 @@ import { UtensilsCrossed, LayoutDashboard, ShoppingBasket, BarChart3, UserCircle
 import { cn } from '@/lib/utils';
 
 const Navbar = () => {
-  const { user, signOut } = useApp();
+  const { user, session, signOut } = useApp();
   const location = useLocation();
 
   const navItems = [
@@ -43,7 +43,7 @@ const Navbar = () => {
             </Link>
           ))}
           
-          {!user ? (
+          {!session ? (
             <Link to="/auth" className="flex flex-col md:flex-row items-center gap-1 md:gap-2 p-2 text-slate-500">
               <UserCircle className="w-5 h-5" />
               <span className="text-[10px] md:text-sm font-medium">Login</span>
@@ -52,9 +52,9 @@ const Navbar = () => {
             <div className="flex items-center gap-4">
               <div className="flex flex-col md:flex-row items-center gap-1 md:gap-2 p-2 text-emerald-700 font-semibold">
                 <div className="w-6 h-6 rounded-full bg-emerald-100 flex items-center justify-center text-[10px]">
-                  {user.name[0]}
+                  {user?.name?.[0] || '?'}
                 </div>
-                <span className="text-[10px] md:text-sm hidden md:block">{user.name}</span>
+                <span className="text-[10px] md:text-sm hidden md:block">{user?.name || 'Loading...'}</span>
               </div>
               <button 
                 onClick={signOut}

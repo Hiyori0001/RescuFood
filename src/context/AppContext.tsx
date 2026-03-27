@@ -80,8 +80,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   useEffect(() => {
     const initialize = async () => {
-      const timeoutId = setTimeout(() => setLoading(false), 5000);
-
       try {
         const { data: { session: initialSession } } = await supabase.auth.getSession();
         setSession(initialSession);
@@ -100,7 +98,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       } catch (error) {
         console.error("[AppContext] Initialization error:", error);
       } finally {
-        clearTimeout(timeoutId);
         setLoading(false);
       }
     };
@@ -152,16 +149,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
       }
 
-      // Fallback: If profile still doesn't exist for an authenticated user, create it
       if (!profileData) {
         const { data: { user: authUser } } = await supabase.auth.getUser();
         if (authUser) {
           const pendingRole = localStorage.getItem('pending_role') || 'Beneficiary';
           const { data: newProfile, error: insertError } = await supabase
             .from('profiles')
-            .insert([{
+            .upsert([{
               id: userId,
-              full_name: authUser.user_metadata?.full_name || 'User',
+              full_name: authUser.user_metadata?.full_name || authUser.email?.split('@')[0] || 'User',
               role: pendingRole
             }])
             .select()
@@ -200,7 +196,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         `);
 
       if (role !== 'Admin') {
-        query = query.or(`provider_id.eq.${userId},beneficiary_id.eq.${userId},status.eq.Approved`);
+        query = query.or(`provider_id.eq.${userId},beneficiary_id.eq.${userId},volunteer_id.eq.${userId},status.eq.Approved`);
       }
 
       const { data, error } = await query.order('created_at', { ascending: false });
@@ -367,10 +363,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const signOut = async () => {
-    await supabase.auth.signOut();
-    setUser(null);
-    setSession(null);
-    localStorage.removeItem('pending_role');
+    try {
+      await supabase.auth.signOut();
+    } catch (e) {
+      console.error("Sign out error:", e);
+    } finally {
+      setUser(null);
+      setSession(null);
+      setTransactions([]);
+      localStorage.removeItem('pending_role');
+      showSuccess('Signed out successfully');
+    }
   };
 
   const refreshProfile = async () => {
