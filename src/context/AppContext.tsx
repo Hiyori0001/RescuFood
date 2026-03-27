@@ -87,14 +87,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           inventory:item_id (name)
         `);
 
-      // If not admin, we need to be careful about what we show
       if (role !== 'Admin') {
-        // Volunteers need to see all 'Approved' tasks to claim them, 
-        // plus any tasks they've already claimed (volunteer_id = userId)
         if (role === 'Volunteer') {
+          // Volunteers see 'Approved' tasks (to claim) and their own active deliveries
           query = query.or(`status.eq.Approved,volunteer_id.eq.${userId},status.eq.In Transit`);
         } else {
-          // Providers and Beneficiaries see their own
           query = query.or(`provider_id.eq.${userId},beneficiary_id.eq.${userId}`);
         }
       }
