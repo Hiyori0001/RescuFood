@@ -1,6 +1,6 @@
 "use client";
 
-import React from 'react';
+import React, { useState } from 'react';
 import { useApp } from '@/context/AppContext';
 import { motion } from 'framer-motion';
 import { Card, CardContent } from '@/components/ui/card';
@@ -18,13 +18,20 @@ import {
   Package,
   History,
   AlertCircle,
-  Info,
+  RefreshCw,
   ClipboardList
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const Dashboard = () => {
-  const { user, session, loading, transactions, updateTransactionStatus, claimDelivery } = useApp();
+  const { user, session, loading, transactions, updateTransactionStatus, claimDelivery, refreshProfile } = useApp();
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    await refreshProfile();
+    setTimeout(() => setIsRefreshing(false), 1000);
+  };
 
   if (loading) return (
     <div className="min-h-screen flex items-center justify-center bg-slate-50">
@@ -70,7 +77,7 @@ const Dashboard = () => {
   const activeLogistics = transactions.filter(t => {
     const isActive = t.status === 'Approved' || t.status === 'In Transit';
     if (!isActive) return false;
-    if (user.role === 'Volunteer') return false; // Volunteers have their own sections
+    if (user.role === 'Volunteer') return false; 
     return t.providerId === user.id || t.beneficiaryId === user.id || user.role === 'Admin';
   });
 
@@ -94,19 +101,29 @@ const Dashboard = () => {
             </p>
           </div>
           
-          <div className="flex gap-6 bg-white p-6 rounded-3xl shadow-sm border border-slate-100">
-            <div className="text-center px-4 border-r border-slate-100">
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Trust Score</p>
-              <div className="flex items-center gap-1 justify-center">
-                <span className="text-2xl font-bold text-slate-900">4.9</span>
-                <Star className="w-4 h-4 text-amber-400 fill-amber-400" />
+          <div className="flex items-center gap-4">
+            <Button 
+              variant="outline" 
+              size="icon" 
+              onClick={handleRefresh}
+              className={cn("rounded-xl border-slate-200 bg-white", isRefreshing && "animate-spin")}
+            >
+              <RefreshCw className="w-4 h-4 text-slate-500" />
+            </Button>
+            <div className="flex gap-6 bg-white p-6 rounded-3xl shadow-sm border border-slate-100">
+              <div className="text-center px-4 border-r border-slate-100">
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Trust Score</p>
+                <div className="flex items-center gap-1 justify-center">
+                  <span className="text-2xl font-bold text-slate-900">4.9</span>
+                  <Star className="w-4 h-4 text-amber-400 fill-amber-400" />
+                </div>
               </div>
-            </div>
-            <div className="text-center px-4">
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Impact</p>
-              <div className="flex items-center gap-1 justify-center">
-                <span className="text-2xl font-bold text-slate-900">{transactions.filter(t => t.status === 'Delivered').length}</span>
-                <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+              <div className="text-center px-4">
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Impact</p>
+                <div className="flex items-center gap-1 justify-center">
+                  <span className="text-2xl font-bold text-slate-900">{transactions.filter(t => t.status === 'Delivered').length}</span>
+                  <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                </div>
               </div>
             </div>
           </div>
@@ -129,7 +146,7 @@ const Dashboard = () => {
                 <div className="space-y-4">
                   {availableTasks.length === 0 ? (
                     <Card className="border-none shadow-sm rounded-3xl p-8 text-center bg-white/50 border border-dashed border-slate-200">
-                      <p className="text-slate-400">No tasks currently available for pickup.</p>
+                      <p className="text-slate-400">No tasks currently available for pickup. Check back soon!</p>
                     </Card>
                   ) : (
                     availableTasks.map((t) => (
