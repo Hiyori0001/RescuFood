@@ -55,30 +55,30 @@ const Dashboard = () => {
     </div>
   );
 
-  // Filter for Providers/Admins: Pending requests for their items
+  // Filter for Providers/Admins: Pending requests
   const incomingRequests = transactions.filter(t => {
     if (t.status !== 'Pending') return false;
-    if (t.providerId === user.id) return true;
-    if (user.role === 'Admin' && t.beneficiaryId !== user.id) return true;
-    return false;
+    if (user.role === 'Admin') return true;
+    return t.providerId === user.id;
   });
 
-  // Filter for Volunteers: Available tasks (Approved by provider but no volunteer assigned yet)
+  // Filter for Volunteers: Available tasks (Approved but no volunteer)
   const availableTasks = transactions.filter(t => 
     t.status === 'Approved' && !t.volunteerId
   );
 
-  // Filter for Volunteers: My active deliveries (Tasks I've claimed)
+  // Filter for Volunteers: My active deliveries
   const myDeliveries = transactions.filter(t => 
     t.volunteerId === user.id && (t.status === 'Approved' || t.status === 'In Transit')
   );
 
-  // General active logistics for others (Providers/Beneficiaries/Admins)
+  // Active Logistics: Ongoing transits for Admins (all) or involved parties
   const activeLogistics = transactions.filter(t => {
     const isActive = t.status === 'Approved' || t.status === 'In Transit';
     if (!isActive) return false;
-    if (user.role === 'Volunteer') return false; // Volunteers use the sections above
-    return t.providerId === user.id || t.beneficiaryId === user.id || user.role === 'Admin';
+    // Volunteers have their own section, but Admins should see everything here
+    if (user.role === 'Volunteer') return false; 
+    return user.role === 'Admin' || t.providerId === user.id || t.beneficiaryId === user.id;
   });
 
   const history = transactions.filter(t => 
@@ -132,8 +132,8 @@ const Dashboard = () => {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           <div className="lg:col-span-2 space-y-8">
             
-            {/* VOLUNTEER SECTION: Available Tasks */}
-            {(user.role === 'Volunteer' || user.role === 'Admin') && (
+            {/* VOLUNTEER SECTION: Only for Volunteers */}
+            {user.role === 'Volunteer' && (
               <section>
                 <div className="flex items-center justify-between mb-4">
                   <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
@@ -146,7 +146,7 @@ const Dashboard = () => {
                 <div className="space-y-4">
                   {availableTasks.length === 0 ? (
                     <Card className="border-none shadow-sm rounded-3xl p-8 text-center bg-white/50 border border-dashed border-slate-200">
-                      <p className="text-slate-400">No tasks currently available for pickup. Check back soon!</p>
+                      <p className="text-slate-400">No tasks currently available for pickup.</p>
                     </Card>
                   ) : (
                     availableTasks.map((t) => (
@@ -160,18 +160,16 @@ const Dashboard = () => {
                               <div>
                                 <h3 className="font-bold text-slate-900">{t.itemName}</h3>
                                 <p className="text-sm text-slate-500 flex items-center gap-1">
-                                  <MapPin className="w-3 h-3" /> Ready for pickup at Provider location
+                                  <MapPin className="w-3 h-3" /> Ready for pickup
                                 </p>
                               </div>
                             </div>
-                            {user.role === 'Volunteer' && (
-                              <Button 
-                                onClick={() => claimDelivery(t.id)}
-                                className="bg-blue-600 hover:bg-blue-700 text-white rounded-xl"
-                              >
-                                Claim Delivery
-                              </Button>
-                            )}
+                            <Button 
+                              onClick={() => claimDelivery(t.id)}
+                              className="bg-blue-600 hover:bg-blue-700 text-white rounded-xl"
+                            >
+                              Claim Delivery
+                            </Button>
                           </div>
                         </Card>
                       </motion.div>
@@ -182,7 +180,7 @@ const Dashboard = () => {
             )}
 
             {/* VOLUNTEER SECTION: My Active Deliveries */}
-            {(user.role === 'Volunteer' || user.role === 'Admin') && myDeliveries.length > 0 && (
+            {user.role === 'Volunteer' && myDeliveries.length > 0 && (
               <section>
                 <div className="flex items-center justify-between mb-4">
                   <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
@@ -208,14 +206,12 @@ const Dashboard = () => {
                                 </p>
                               </div>
                             </div>
-                            {user.role === 'Volunteer' && (
-                              <Button 
-                                onClick={() => updateTransactionStatus(t.id, t.itemId, 'Delivered')}
-                                className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl"
-                              >
-                                <CheckCircle2 className="w-4 h-4 mr-2" /> Mark Delivered
-                              </Button>
-                            )}
+                            <Button 
+                              onClick={() => updateTransactionStatus(t.id, t.itemId, 'Delivered')}
+                              className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl"
+                            >
+                              <CheckCircle2 className="w-4 h-4 mr-2" /> Mark Delivered
+                            </Button>
                           </div>
                         </div>
                       </Card>
@@ -225,13 +221,13 @@ const Dashboard = () => {
               </section>
             )}
 
-            {/* PROVIDER SECTION: Incoming Requests */}
+            {/* PROVIDER/ADMIN SECTION: Incoming Requests */}
             {(user.role === 'Provider' || user.role === 'Admin') && (
               <section>
                 <div className="flex items-center justify-between mb-4">
                   <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
                     <ArrowDownLeft className="w-5 h-5 text-emerald-600" />
-                    Incoming Requests
+                    {user.role === 'Admin' ? 'All Pending Requests' : 'Incoming Requests'}
                   </h2>
                   <Badge className="bg-emerald-100 text-emerald-700">{incomingRequests.length}</Badge>
                 </div>
@@ -239,7 +235,7 @@ const Dashboard = () => {
                 <div className="space-y-4">
                   {incomingRequests.length === 0 ? (
                     <Card className="border-none shadow-sm rounded-3xl p-8 text-center bg-white/50 border border-dashed border-slate-200">
-                      <p className="text-slate-400">No pending requests for your items.</p>
+                      <p className="text-slate-400">No pending requests.</p>
                     </Card>
                   ) : (
                     incomingRequests.map((t) => (
@@ -252,7 +248,7 @@ const Dashboard = () => {
                               </div>
                               <div>
                                 <h3 className="font-bold text-slate-900">{t.itemName}</h3>
-                                <p className="text-sm text-slate-500">Provider Action Required</p>
+                                <p className="text-sm text-slate-500">Action Required</p>
                               </div>
                             </div>
                             <div className="flex items-center gap-2">
@@ -279,13 +275,13 @@ const Dashboard = () => {
               </section>
             )}
 
-            {/* GENERAL SECTION: Active Logistics (For non-volunteers) */}
+            {/* GENERAL SECTION: Active Logistics / Ongoing Transits */}
             {user.role !== 'Volunteer' && (
               <section>
                 <div className="flex items-center justify-between mb-4">
                   <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
                     <Truck className="w-5 h-5 text-emerald-600" />
-                    Active Logistics
+                    {user.role === 'Admin' ? 'All Ongoing Transits' : 'Active Logistics'}
                   </h2>
                 </div>
                 
@@ -311,6 +307,11 @@ const Dashboard = () => {
                                 <p className="text-sm text-slate-500">
                                   {t.status === 'In Transit' ? 'On the way to destination' : 'Waiting for a volunteer'}
                                 </p>
+                                {user.role === 'Admin' && t.volunteerId && (
+                                  <p className="text-[10px] text-emerald-600 font-bold mt-1 uppercase tracking-wider">
+                                    Volunteer Assigned
+                                  </p>
+                                )}
                               </div>
                             </div>
                           </div>
