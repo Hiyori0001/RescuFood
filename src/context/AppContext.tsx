@@ -87,8 +87,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           inventory:item_id (name)
         `);
 
+      // If not admin, only fetch transactions where user is involved
+      // We removed volunteer_id from the query for now to ensure compatibility with the base schema
       if (role !== 'Admin') {
-        query = query.or(`provider_id.eq.${userId},beneficiary_id.eq.${userId},volunteer_id.eq.${userId},status.eq.Approved`);
+        query = query.or(`provider_id.eq.${userId},beneficiary_id.eq.${userId},status.eq.Approved`);
       }
 
       const { data, error } = await query.order('created_at', { ascending: false });
@@ -174,8 +176,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (data) {
         setImpactMetrics({
           mealsSaved: data.meals_saved,
-          waste_reduced: data.waste_reduced,
-          communities_served: data.communities_served,
+          wasteReduced: data.waste_reduced,
+          communitiesServed: data.communities_served,
         });
       }
     } catch (e) {
@@ -183,8 +185,27 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, []);
 
-  // Initial data load
   useEffect(() => {
+    let isMounted = true;
+
+    const initializeAuth = async () => {
+      try {
+        const { data: { session: initialSession } } = await supabase.auth.getSession();
+        if (!isMounted) return;
+
+        setSession(initialSession);
+        setLoading(false);
+
+        if (initialSession) {
+          fetchProfile(initialSession.user.id);
+        }
+      } catch (error) {
+        console.error("[AppContext] Auth initialization error:", error);
+        if (isMounted) setLoading(false);
+      }
+    };
+
+    initializeAuth();
     fetchInventory();
     fetchImpactMetrics();
 
@@ -195,27 +216,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       })
       .subscribe();
 
-    return () => {
-      supabase.removeChannel(inventoryChannel);
-    };
-  }, [fetchInventory, fetchImpactMetrics]);
-
-  // Auth listener
-  useEffect(() => {
-    let isMounted = true;
-
-    const checkSession = async () => {
-      const { data: { session: initialSession } } = await supabase.auth.getSession();
-      if (!isMounted) return;
-      
-      setSession(initialSession);
-      if (initialSession) {
-        await fetchProfile(initialSession.user.id);
-      }
-      setLoading(false);
-    };
-
-    checkSession();
+    const transactionsChannel = supabase
+      .channel('transaction-changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'transactions' }, () => {
+        if (session?.user.id) {
+          fetchTransactions(session.user.id, user?.role);
+        }
+      })
+      .subscribe();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, currentSession) => {
       if (!isMounted) return;
@@ -223,40 +231,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setSession(currentSession);
       
       if (currentSession) {
-        const pendingRole = localStorage.getItem('pending_role');
-        if (pendingRole && (event === 'SIGNED_IN' || event === 'USER_UPDATED')) {
-          await supabase.from('profiles').update({ role: pendingRole }).eq('id', currentSession.user.id);
-          localStorage.removeItem('pending_role');
-        }
-        await fetchProfile(currentSession.user.id);
+        fetchProfile(currentSession.user.id);
       } else {
         setUser(null);
         setTransactions([]);
       }
-      setLoading(false);
     });
 
     return () => {
       isMounted = false;
       subscription.unsubscribe();
-    };
-  }, [fetchProfile]);
-
-  // Transaction listener
-  useEffect(() => {
-    if (!session?.user.id) return;
-
-    const transactionsChannel = supabase
-      .channel('transaction-changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'transactions' }, () => {
-        fetchTransactions(session.user.id, user?.role);
-      })
-      .subscribe();
-
-    return () => {
+      supabase.removeChannel(inventoryChannel);
       supabase.removeChannel(transactionsChannel);
     };
-  }, [session?.user.id, user?.role, fetchTransactions]);
+  }, [fetchProfile, fetchInventory, fetchImpactMetrics, session?.user.id, user?.role, fetchTransactions]);
 
   const addFoodItem = async (item: any) => {
     if (!session?.user) return;
