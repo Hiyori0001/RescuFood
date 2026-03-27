@@ -80,18 +80,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   useEffect(() => {
     const initialize = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      setSession(session);
-      if (session) {
-        const profile = await syncRoleAndFetchProfile(session.user.id);
-        if (profile) {
-          await fetchTransactions(session.user.id, profile.role);
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        setSession(session);
+        
+        if (session) {
+          const profile = await syncRoleAndFetchProfile(session.user.id);
+          if (profile) {
+            await fetchTransactions(session.user.id, profile.role);
+          }
         }
+        
+        await Promise.all([
+          fetchInventory(),
+          fetchImpactMetrics()
+        ]);
+      } catch (error) {
+        console.error("Initialization error:", error);
+      } finally {
+        setLoading(false);
       }
-      
-      await fetchInventory();
-      await fetchImpactMetrics();
-      setLoading(false);
     };
 
     initialize();
@@ -123,9 +131,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       .from('profiles')
       .select('*')
       .eq('id', userId)
-      .single();
+      .maybeSingle();
 
-    if (error) return null;
+    if (error || !data) return null;
 
     const pendingRole = localStorage.getItem('pending_role');
     if (data && pendingRole && data.role === 'Beneficiary' && pendingRole !== 'Beneficiary') {
@@ -208,7 +216,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const fetchImpactMetrics = async () => {
-    const { data } = await supabase.from('impact_metrics').select('*').single();
+    const { data } = await supabase.from('impact_metrics').select('*').maybeSingle();
     if (data) {
       setImpactMetrics({
         mealsSaved: data.meals_saved,
@@ -301,7 +309,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     await supabase.from('inventory').update({ status: invStatus }).eq('id', itemId);
 
     if (newStatus === 'Delivered') {
-      const { data: current } = await supabase.from('impact_metrics').select('*').single();
+      const { data: current } = await supabase.from('impact_metrics').select('*').maybeSingle();
       const update = {
         meals_saved: (current?.meals_saved || 0) + 10,
         waste_reduced: (current?.waste_reduced || 0) + 5,
