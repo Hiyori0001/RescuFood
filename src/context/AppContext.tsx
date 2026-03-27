@@ -84,9 +84,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         .from('transactions')
         .select(`
           *,
-          inventory (name)
+          inventory:item_id (name)
         `);
 
+      // If not admin, only fetch transactions where user is involved or it's approved (for volunteers)
       if (role !== 'Admin') {
         query = query.or(`provider_id.eq.${userId},beneficiary_id.eq.${userId},volunteer_id.eq.${userId},status.eq.Approved`);
       }
@@ -94,18 +95,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const { data, error } = await query.order('created_at', { ascending: false });
       if (error) throw error;
 
-      setTransactions(data.map(t => ({
-        id: t.id,
-        itemId: t.item_id,
-        itemName: Array.isArray(t.inventory) ? t.inventory[0]?.name : t.inventory?.name || 'Unknown Item',
-        providerId: t.provider_id,
-        beneficiaryId: t.beneficiary_id,
-        volunteerId: t.volunteer_id,
-        status: t.status,
-        createdAt: t.created_at
-      })));
+      setTransactions(data.map(t => {
+        // Handle potential array or object response from Supabase join
+        const inv = Array.isArray(t.inventory) ? t.inventory[0] : t.inventory;
+        return {
+          id: t.id,
+          itemId: t.item_id,
+          itemName: inv?.name || 'Unknown Item',
+          providerId: t.provider_id,
+          beneficiaryId: t.beneficiary_id,
+          volunteerId: t.volunteer_id,
+          status: t.status,
+          createdAt: t.created_at
+        };
+      }));
     } catch (e) {
-      console.error("Fetch transactions error:", e);
+      console.error("[AppContext] Fetch transactions error:", e);
     }
   }, []);
 
@@ -141,7 +146,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
       }
     } catch (e) {
-      console.error("Profile fetch error:", e);
+      console.error("[AppContext] Profile fetch error:", e);
     }
     return null;
   }, [fetchTransactions]);
@@ -172,7 +177,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         isSafetyVerified: item.is_safety_verified,
       })));
     } catch (e) {
-      console.error("Fetch inventory error:", e);
+      console.error("[AppContext] Fetch inventory error:", e);
     }
   }, []);
 
@@ -187,7 +192,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         });
       }
     } catch (e) {
-      console.error("Fetch impact metrics error:", e);
+      console.error("[AppContext] Fetch impact metrics error:", e);
     }
   }, []);
 
@@ -206,7 +211,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           fetchProfile(initialSession.user.id);
         }
       } catch (error) {
-        console.error("Auth initialization error:", error);
+        console.error("[AppContext] Auth initialization error:", error);
         if (isMounted) setLoading(false);
       }
     };
@@ -357,7 +362,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       await supabase.auth.signOut();
       showSuccess('Signed out successfully');
     } catch (e) {
-      console.error("Sign out error:", e);
+      console.error("[AppContext] Sign out error:", e);
     }
   };
 
