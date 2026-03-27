@@ -80,36 +80,44 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   useEffect(() => {
     const initialize = async () => {
+      // Safety timeout to ensure loading is always cleared
+      const timeoutId = setTimeout(() => {
+        setLoading(false);
+      }, 5000);
+
       try {
-        const { data: { session } } = await supabase.auth.getSession();
-        setSession(session);
+        const { data: { session: initialSession } } = await supabase.auth.getSession();
+        setSession(initialSession);
         
-        if (session) {
-          const profile = await syncRoleAndFetchProfile(session.user.id);
+        if (initialSession) {
+          const profile = await syncRoleAndFetchProfile(initialSession.user.id);
           if (profile) {
-            await fetchTransactions(session.user.id, profile.role);
+            await fetchTransactions(initialSession.user.id, profile.role);
           }
         }
         
-        await Promise.all([
+        // Fetch public data
+        await Promise.allSettled([
           fetchInventory(),
           fetchImpactMetrics()
         ]);
       } catch (error) {
-        console.error("Initialization error:", error);
+        console.error("[AppContext] Initialization error:", error);
       } finally {
+        clearTimeout(timeoutId);
         setLoading(false);
       }
     };
 
     initialize();
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      setSession(session);
-      if (session) {
-        const profile = await syncRoleAndFetchProfile(session.user.id);
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, currentSession) => {
+      setSession(currentSession);
+      
+      if (currentSession) {
+        const profile = await syncRoleAndFetchProfile(currentSession.user.id);
         if (profile) {
-          fetchTransactions(session.user.id, profile.role);
+          fetchTransactions(currentSession.user.id, profile.role);
         }
       } else {
         setUser(null);
@@ -120,6 +128,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setUser(null);
         setSession(null);
         setTransactions([]);
+        localStorage.removeItem('pending_role');
       }
     });
 
@@ -127,102 +136,116 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, []);
 
   const syncRoleAndFetchProfile = async (userId: string) => {
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', userId)
-      .maybeSingle();
-
-    if (error || !data) return null;
-
-    const pendingRole = localStorage.getItem('pending_role');
-    if (data && pendingRole && data.role === 'Beneficiary' && pendingRole !== 'Beneficiary') {
-      const { error: updateError } = await supabase
+    try {
+      const { data, error } = await supabase
         .from('profiles')
-        .update({ role: pendingRole })
-        .eq('id', userId);
-      
-      if (!updateError) {
-        data.role = pendingRole;
-        localStorage.removeItem('pending_role');
-      }
-    }
+        .select('*')
+        .eq('id', userId)
+        .maybeSingle();
 
-    const profile: UserProfile = {
-      id: data.id,
-      name: data.full_name || 'User',
-      role: data.role as UserRole,
-    };
-    
-    setUser(profile);
-    return profile;
+      if (error || !data) return null;
+
+      const pendingRole = localStorage.getItem('pending_role');
+      if (data && pendingRole && data.role === 'Beneficiary' && pendingRole !== 'Beneficiary') {
+        const { error: updateError } = await supabase
+          .from('profiles')
+          .update({ role: pendingRole })
+          .eq('id', userId);
+        
+        if (!updateError) {
+          data.role = pendingRole;
+          localStorage.removeItem('pending_role');
+        }
+      }
+
+      const profile: UserProfile = {
+        id: data.id,
+        name: data.full_name || 'User',
+        role: data.role as UserRole,
+      };
+      
+      setUser(profile);
+      return profile;
+    } catch (e) {
+      console.error("[AppContext] Profile sync error:", e);
+      return null;
+    }
   };
 
   const fetchTransactions = async (userId: string, role?: UserRole) => {
-    let query = supabase
-      .from('transactions')
-      .select(`
-        *,
-        inventory (name)
-      `);
+    try {
+      let query = supabase
+        .from('transactions')
+        .select(`
+          *,
+          inventory (name)
+        `);
 
-    if (role !== 'Admin') {
-      query = query.or(`provider_id.eq.${userId},beneficiary_id.eq.${userId},status.eq.Approved`);
+      if (role !== 'Admin') {
+        query = query.or(`provider_id.eq.${userId},beneficiary_id.eq.${userId},status.eq.Approved`);
+      }
+
+      const { data, error } = await query.order('created_at', { ascending: false });
+
+      if (error) throw error;
+
+      setTransactions(data.map(t => ({
+        id: t.id,
+        itemId: t.item_id,
+        itemName: t.inventory?.name || 'Unknown Item',
+        providerId: t.provider_id,
+        beneficiaryId: t.beneficiary_id,
+        volunteerId: t.volunteer_id,
+        status: t.status,
+        createdAt: t.created_at
+      })));
+    } catch (e) {
+      console.error("[AppContext] Fetch transactions error:", e);
     }
-
-    const { data, error } = await query.order('created_at', { ascending: false });
-
-    if (error) {
-      console.error("Error fetching transactions:", error);
-      return;
-    }
-
-    setTransactions(data.map(t => ({
-      id: t.id,
-      itemId: t.item_id,
-      itemName: t.inventory?.name || 'Unknown Item',
-      providerId: t.provider_id,
-      beneficiaryId: t.beneficiary_id,
-      volunteerId: t.volunteer_id,
-      status: t.status,
-      createdAt: t.created_at
-    })));
   };
 
   const fetchInventory = async () => {
-    const { data, error } = await supabase
-      .from('inventory')
-      .select('*')
-      .order('created_at', { ascending: false });
+    try {
+      const { data, error } = await supabase
+        .from('inventory')
+        .select('*')
+        .order('created_at', { ascending: false });
 
-    if (error) return;
+      if (error) throw error;
 
-    setInventory(data.map(item => ({
-      id: item.id,
-      name: item.name,
-      type: item.type,
-      quantity: item.quantity,
-      expiryDate: item.expiry_date,
-      providerId: item.provider_id,
-      providerName: item.provider_name,
-      location: item.location,
-      status: item.status,
-      pricing: item.pricing,
-      price: item.price,
-      distance: item.distance,
-      isNearExpiry: new Date(item.expiry_date).getTime() - Date.now() < 72 * 60 * 60 * 1000,
-      isSafetyVerified: item.is_safety_verified,
-    })));
+      setInventory(data.map(item => ({
+        id: item.id,
+        name: item.name,
+        type: item.type,
+        quantity: item.quantity,
+        expiryDate: item.expiry_date,
+        providerId: item.provider_id,
+        providerName: item.provider_name,
+        location: item.location,
+        status: item.status,
+        pricing: item.pricing,
+        price: item.price,
+        distance: item.distance,
+        isNearExpiry: new Date(item.expiry_date).getTime() - Date.now() < 72 * 60 * 60 * 1000,
+        isSafetyVerified: item.is_safety_verified,
+      })));
+    } catch (e) {
+      console.error("[AppContext] Fetch inventory error:", e);
+    }
   };
 
   const fetchImpactMetrics = async () => {
-    const { data } = await supabase.from('impact_metrics').select('*').maybeSingle();
-    if (data) {
-      setImpactMetrics({
-        mealsSaved: data.meals_saved,
-        wasteReduced: data.waste_reduced,
-        communitiesServed: data.communities_served,
-      });
+    try {
+      const { data } = await supabase.from('impact_metrics').select('*').maybeSingle();
+      if (data) {
+        setImpactMetrics({
+          mealsSaved: data.meals_saved,
+          wasteReduced: data.waste_reduced,
+          communitiesServed: data.communities_served,
+        });
+      }
+    } catch (e) {
+      console.error("[AppContext] Fetch impact metrics error:", e);
     }
   };
 
