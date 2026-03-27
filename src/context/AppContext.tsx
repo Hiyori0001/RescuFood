@@ -87,16 +87,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           inventory:item_id (name)
         `);
 
-      // If not admin, only fetch transactions where user is involved or it's approved (for volunteers)
+      // If not admin, only fetch transactions where user is involved
+      // We removed volunteer_id from the query for now to ensure compatibility with the base schema
       if (role !== 'Admin') {
-        query = query.or(`provider_id.eq.${userId},beneficiary_id.eq.${userId},volunteer_id.eq.${userId},status.eq.Approved`);
+        query = query.or(`provider_id.eq.${userId},beneficiary_id.eq.${userId},status.eq.Approved`);
       }
 
       const { data, error } = await query.order('created_at', { ascending: false });
       if (error) throw error;
 
-      setTransactions(data.map(t => {
-        // Handle potential array or object response from Supabase join
+      setTransactions((data || []).map(t => {
         const inv = Array.isArray(t.inventory) ? t.inventory[0] : t.inventory;
         return {
           id: t.id,
@@ -133,17 +133,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setUser(profile);
         fetchTransactions(userId, profile.role);
         return profile;
-      } else {
-        const { data: { user: authUser } } = await supabase.auth.getUser();
-        if (authUser) {
-          const tempProfile: UserProfile = {
-            id: userId,
-            name: authUser.user_metadata?.full_name || authUser.email?.split('@')[0] || 'User',
-            role: (localStorage.getItem('pending_role') as UserRole) || 'Beneficiary',
-          };
-          setUser(tempProfile);
-          return tempProfile;
-        }
       }
     } catch (e) {
       console.error("[AppContext] Profile fetch error:", e);
@@ -160,7 +149,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
       if (error) throw error;
 
-      setInventory(data.map(item => ({
+      setInventory((data || []).map(item => ({
         id: item.id,
         name: item.name,
         type: item.type,
@@ -220,7 +209,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     fetchInventory();
     fetchImpactMetrics();
 
-    // Real-time subscriptions
     const inventoryChannel = supabase
       .channel('inventory-changes')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'inventory' }, () => {
@@ -247,10 +235,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       } else {
         setUser(null);
         setTransactions([]);
-      }
-      
-      if (event === 'SIGNED_OUT') {
-        localStorage.removeItem('pending_role');
       }
     });
 
