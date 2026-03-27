@@ -6,66 +6,116 @@ import { motion } from 'framer-motion';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Truck, CheckCircle2, Clock, MapPin, Star, ShieldCheck, User } from 'lucide-react';
+import { Truck, CheckCircle2, Clock, MapPin, Star, ShieldCheck, User, XCircle, ArrowDownLeft, ArrowUpRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const Dashboard = () => {
   const { user, transactions, updateTransactionStatus, claimDelivery } = useApp();
 
-  // Admins see everything, others see what they are involved in
-  const activeTransactions = transactions.filter(t => {
+  if (!user) return <div className="p-20 text-center">Please login to view dashboard.</div>;
+
+  // Filter transactions based on involvement
+  const incomingRequests = transactions.filter(t => 
+    t.providerId === user.id && t.status === 'Pending'
+  );
+
+  const myActiveTasks = transactions.filter(t => {
     const isFinished = t.status === 'Delivered' || t.status === 'Cancelled';
     if (isFinished) return false;
 
-    if (user?.role === 'Admin') return true;
+    // Don't show pending incoming requests here, they have their own section
+    if (t.providerId === user.id && t.status === 'Pending') return false;
+
+    if (user.role === 'Admin') return true;
     
-    const isInvolved = t.providerId === user?.id || 
-                       t.beneficiaryId === user?.id || 
-                       t.volunteerId === user?.id;
+    const isInvolved = t.providerId === user.id || 
+                       t.beneficiaryId === user.id || 
+                       t.volunteerId === user.id;
     
-    const isAvailableForVolunteer = user?.role === 'Volunteer' && t.status === 'Approved' && !t.volunteerId;
+    const isAvailableForVolunteer = user.role === 'Volunteer' && t.status === 'Approved' && !t.volunteerId;
 
     return isInvolved || isAvailableForVolunteer;
   });
   
   const completedCount = transactions.filter(t => 
     t.status === 'Delivered' && 
-    (user?.role === 'Admin' || t.providerId === user?.id || t.beneficiaryId === user?.id || t.volunteerId === user?.id)
+    (user.role === 'Admin' || t.providerId === user.id || t.beneficiaryId === user.id || t.volunteerId === user.id)
   ).length;
-
-  if (!user) return <div className="p-20 text-center">Please login to view dashboard.</div>;
 
   return (
     <div className="min-h-screen bg-slate-50 p-6 pb-24 md:pt-24">
       <div className="max-w-5xl mx-auto">
-        <header className="mb-8">
-          <h1 className="text-3xl font-bold text-slate-900">Welcome, {user.name}</h1>
-          <p className="text-slate-500">Role: <span className="font-bold text-emerald-600">{user.role}</span></p>
+        <header className="mb-8 flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div>
+            <h1 className="text-3xl font-bold text-slate-900">Welcome, {user.name}</h1>
+            <p className="text-slate-500">Role: <span className="font-bold text-emerald-600">{user.role}</span></p>
+          </div>
+          <div className="flex gap-4">
+            <div className="text-right">
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Trust Score</p>
+              <div className="flex items-center gap-1 justify-end">
+                <span className="text-xl font-bold text-slate-900">4.9</span>
+                <Star className="w-4 h-4 text-amber-400 fill-amber-400" />
+              </div>
+            </div>
+            <div className="text-right">
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Completed</p>
+              <div className="flex items-center gap-1 justify-end">
+                <span className="text-xl font-bold text-slate-900">{completedCount}</span>
+                <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+              </div>
+            </div>
+          </div>
         </header>
 
-        <div className="grid md:grid-cols-3 gap-6 mb-10">
-          <Card className="border-none shadow-sm rounded-3xl bg-emerald-600 text-white">
-            <CardContent className="p-6">
-              <p className="text-emerald-100 text-sm font-medium mb-1">Active Tasks</p>
-              <h3 className="text-4xl font-bold">{activeTransactions.length}</h3>
-            </CardContent>
-          </Card>
-          <Card className="border-none shadow-sm rounded-3xl bg-white">
-            <CardContent className="p-6">
-              <p className="text-slate-500 text-sm font-medium mb-1">Completed Rescues</p>
-              <h3 className="text-4xl font-bold text-slate-900">{completedCount}</h3>
-            </CardContent>
-          </Card>
-          <Card className="border-none shadow-sm rounded-3xl bg-white">
-            <CardContent className="p-6">
-              <p className="text-slate-500 text-sm font-medium mb-1">Trust Score</p>
-              <div className="flex items-center gap-2">
-                <h3 className="text-4xl font-bold text-slate-900">4.9</h3>
-                <Star className="w-6 h-6 text-amber-400 fill-amber-400" />
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+        {/* Incoming Requests Section for Providers */}
+        {incomingRequests.length > 0 && (
+          <section className="mb-10">
+            <h2 className="text-xl font-bold text-slate-900 mb-4 flex items-center gap-2">
+              <ArrowDownLeft className="w-5 h-5 text-emerald-600" />
+              Incoming Requests ({incomingRequests.length})
+            </h2>
+            <div className="grid gap-4">
+              {incomingRequests.map((t) => (
+                <motion.div
+                  key={t.id}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                >
+                  <Card className="border-none shadow-md rounded-2xl overflow-hidden bg-white border-l-4 border-emerald-500">
+                    <div className="p-6 flex flex-col md:flex-row md:items-center justify-between gap-6">
+                      <div className="flex items-start gap-4">
+                        <div className="w-12 h-12 rounded-2xl bg-emerald-50 flex items-center justify-center shrink-0">
+                          <Clock className="w-6 h-6 text-emerald-600" />
+                        </div>
+                        <div>
+                          <h3 className="font-bold text-slate-900">{t.itemName}</h3>
+                          <p className="text-sm text-slate-500">Requested by a Beneficiary</p>
+                          <p className="text-xs text-slate-400 mt-1">Created: {new Date(t.createdAt).toLocaleString()}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <Button 
+                          onClick={() => updateTransactionStatus(t.id, t.itemId, 'Approved')}
+                          className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl px-6"
+                        >
+                          Approve Request
+                        </Button>
+                        <Button 
+                          variant="outline"
+                          onClick={() => updateTransactionStatus(t.id, t.itemId, 'Cancelled')}
+                          className="border-rose-200 text-rose-600 hover:bg-rose-50 rounded-xl"
+                        >
+                          <XCircle className="w-4 h-4 mr-2" /> Reject
+                        </Button>
+                      </div>
+                    </div>
+                  </Card>
+                </motion.div>
+              ))}
+            </div>
+          </section>
+        )}
 
         <h2 className="text-xl font-bold text-slate-900 mb-4 flex items-center gap-2">
           <Truck className="w-5 h-5 text-emerald-600" />
@@ -73,12 +123,12 @@ const Dashboard = () => {
         </h2>
 
         <div className="space-y-4">
-          {activeTransactions.length === 0 ? (
+          {myActiveTasks.length === 0 ? (
             <div className="bg-white p-12 rounded-3xl text-center border border-slate-100">
               <p className="text-slate-400">No active tasks at the moment.</p>
             </div>
           ) : (
-            activeTransactions.map((t) => (
+            myActiveTasks.map((t) => (
               <motion.div
                 key={t.id}
                 initial={{ opacity: 0, x: -20 }}
@@ -120,14 +170,6 @@ const Dashboard = () => {
                     </div>
 
                     <div className="flex items-center gap-3">
-                      {(t.providerId === user.id || user.role === 'Admin') && t.status === 'Pending' && (
-                        <Button 
-                          onClick={() => updateTransactionStatus(t.id, t.itemId, 'Approved')}
-                          className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl"
-                        >
-                          Approve Request
-                        </Button>
-                      )}
                       {user.role === 'Volunteer' && t.status === 'Approved' && !t.volunteerId && (
                         <Button 
                           onClick={() => claimDelivery(t.id)}
