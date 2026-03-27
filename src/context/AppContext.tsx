@@ -87,10 +87,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           inventory:item_id (name)
         `);
 
-      // If not admin, only fetch transactions where user is involved
-      // We removed volunteer_id from the query for now to ensure compatibility with the base schema
+      // If not admin, we need to be careful about what we show
       if (role !== 'Admin') {
-        query = query.or(`provider_id.eq.${userId},beneficiary_id.eq.${userId},status.eq.Approved`);
+        // Volunteers need to see all 'Approved' tasks to claim them, 
+        // plus any tasks they've already claimed (volunteer_id = userId)
+        if (role === 'Volunteer') {
+          query = query.or(`status.eq.Approved,volunteer_id.eq.${userId},status.eq.In Transit`);
+        } else {
+          // Providers and Beneficiaries see their own
+          query = query.or(`provider_id.eq.${userId},beneficiary_id.eq.${userId}`);
+        }
       }
 
       const { data, error } = await query.order('created_at', { ascending: false });
