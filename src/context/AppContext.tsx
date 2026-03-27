@@ -87,10 +87,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           inventory:item_id (name)
         `);
 
-      // If not admin, only fetch transactions where user is involved
-      // We removed volunteer_id from the query for now to ensure compatibility with the base schema
+      // If not admin, fetch transactions where user is involved OR tasks available for pickup
       if (role !== 'Admin') {
-        query = query.or(`provider_id.eq.${userId},beneficiary_id.eq.${userId},status.eq.Approved`);
+        // Volunteers need to see 'Approved' tasks to claim them, and their own claimed tasks
+        query = query.or(`provider_id.eq.${userId},beneficiary_id.eq.${userId},volunteer_id.eq.${userId},status.eq.Approved`);
       }
 
       const { data, error } = await query.order('created_at', { ascending: false });
@@ -231,6 +231,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setSession(currentSession);
       
       if (currentSession) {
+        // Handle pending role assignment for new signups
+        const pendingRole = localStorage.getItem('pending_role');
+        if (pendingRole && (event === 'SIGNED_IN' || event === 'USER_UPDATED')) {
+          await supabase.from('profiles').update({ role: pendingRole }).eq('id', currentSession.user.id);
+          localStorage.removeItem('pending_role');
+        }
         fetchProfile(currentSession.user.id);
       } else {
         setUser(null);
