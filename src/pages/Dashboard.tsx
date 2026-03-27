@@ -18,7 +18,8 @@ import {
   Package,
   History,
   AlertCircle,
-  Info
+  Info,
+  ClipboardList
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -47,6 +48,7 @@ const Dashboard = () => {
     </div>
   );
 
+  // Filter for Providers/Admins
   const incomingRequests = transactions.filter(t => {
     if (t.status !== 'Pending') return false;
     if (t.providerId === user.id) return true;
@@ -54,13 +56,22 @@ const Dashboard = () => {
     return false;
   });
 
-  const activeDeliveries = transactions.filter(t => {
+  // Filter for Volunteers: Available tasks (Approved but no volunteer)
+  const availableTasks = transactions.filter(t => 
+    t.status === 'Approved' && !t.volunteerId
+  );
+
+  // Filter for Volunteers: My active deliveries
+  const myDeliveries = transactions.filter(t => 
+    t.volunteerId === user.id && (t.status === 'Approved' || t.status === 'In Transit')
+  );
+
+  // General active logistics for others
+  const activeLogistics = transactions.filter(t => {
     const isActive = t.status === 'Approved' || t.status === 'In Transit';
     if (!isActive) return false;
-    
-    if (user.role === 'Admin') return true;
-    if (user.role === 'Volunteer') return !t.volunteerId || t.volunteerId === user.id;
-    return t.providerId === user.id || t.beneficiaryId === user.id;
+    if (user.role === 'Volunteer') return false; // Volunteers have their own sections
+    return t.providerId === user.id || t.beneficiaryId === user.id || user.role === 'Admin';
   });
 
   const history = transactions.filter(t => 
@@ -104,7 +115,96 @@ const Dashboard = () => {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           <div className="lg:col-span-2 space-y-8">
             
-            {/* SECTION: Incoming Requests */}
+            {/* VOLUNTEER SECTION: Available Tasks */}
+            {(user.role === 'Volunteer' || user.role === 'Admin') && (
+              <section>
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
+                    <ClipboardList className="w-5 h-5 text-blue-600" />
+                    Available for Pickup
+                  </h2>
+                  <Badge className="bg-blue-100 text-blue-700">{availableTasks.length} Tasks</Badge>
+                </div>
+                
+                <div className="space-y-4">
+                  {availableTasks.length === 0 ? (
+                    <Card className="border-none shadow-sm rounded-3xl p-8 text-center bg-white/50 border border-dashed border-slate-200">
+                      <p className="text-slate-400">No tasks currently available for pickup.</p>
+                    </Card>
+                  ) : (
+                    availableTasks.map((t) => (
+                      <motion.div key={t.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
+                        <Card className="border-none shadow-md rounded-2xl overflow-hidden bg-white border-l-4 border-blue-500">
+                          <div className="p-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                            <div className="flex items-start gap-4">
+                              <div className="w-12 h-12 rounded-2xl bg-blue-50 flex items-center justify-center shrink-0">
+                                <Package className="w-6 h-6 text-blue-600" />
+                              </div>
+                              <div>
+                                <h3 className="font-bold text-slate-900">{t.itemName}</h3>
+                                <p className="text-sm text-slate-500 flex items-center gap-1">
+                                  <MapPin className="w-3 h-3" /> Ready for pickup at Provider location
+                                </p>
+                              </div>
+                            </div>
+                            <Button 
+                              onClick={() => claimDelivery(t.id)}
+                              className="bg-blue-600 hover:bg-blue-700 text-white rounded-xl"
+                            >
+                              Claim Delivery
+                            </Button>
+                          </div>
+                        </Card>
+                      </motion.div>
+                    ))
+                  )}
+                </div>
+              </section>
+            )}
+
+            {/* VOLUNTEER SECTION: My Active Deliveries */}
+            {(user.role === 'Volunteer' || user.role === 'Admin') && myDeliveries.length > 0 && (
+              <section>
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
+                    <Truck className="w-5 h-5 text-emerald-600" />
+                    My Active Deliveries
+                  </h2>
+                </div>
+                
+                <div className="space-y-4">
+                  {myDeliveries.map((t) => (
+                    <motion.div key={t.id} initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }}>
+                      <Card className="border-none shadow-md rounded-2xl overflow-hidden bg-white border-l-4 border-emerald-500">
+                        <div className="p-6">
+                          <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-6">
+                            <div className="flex items-start gap-4">
+                              <div className="w-12 h-12 rounded-2xl bg-emerald-50 flex items-center justify-center shrink-0">
+                                <Truck className="w-6 h-6 text-emerald-600" />
+                              </div>
+                              <div>
+                                <h3 className="font-bold text-slate-900">{t.itemName}</h3>
+                                <p className="text-sm text-slate-500">
+                                  {t.status === 'Approved' ? 'Please pick up the item' : 'In transit to destination'}
+                                </p>
+                              </div>
+                            </div>
+                            <Button 
+                              onClick={() => updateTransactionStatus(t.id, t.itemId, 'Delivered')}
+                              className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl"
+                            >
+                              <CheckCircle2 className="w-4 h-4 mr-2" /> Mark Delivered
+                            </Button>
+                          </div>
+                        </div>
+                      </Card>
+                    </motion.div>
+                  ))}
+                </div>
+              </section>
+            )}
+
+            {/* PROVIDER SECTION: Incoming Requests */}
             {(user.role === 'Provider' || user.role === 'Admin') && (
               <section>
                 <div className="flex items-center justify-between mb-4">
@@ -118,7 +218,6 @@ const Dashboard = () => {
                 <div className="space-y-4">
                   {incomingRequests.length === 0 ? (
                     <Card className="border-none shadow-sm rounded-3xl p-8 text-center bg-white/50 border border-dashed border-slate-200">
-                      <Package className="w-10 h-10 text-slate-300 mx-auto mb-3" />
                       <p className="text-slate-400">No pending requests for your items.</p>
                     </Card>
                   ) : (
@@ -132,12 +231,7 @@ const Dashboard = () => {
                               </div>
                               <div>
                                 <h3 className="font-bold text-slate-900">{t.itemName}</h3>
-                                <p className="text-sm text-slate-500">
-                                  {t.providerId === user.id ? 'Requested from your listing' : 'Global Request'}
-                                </p>
-                                <div className="flex items-center gap-2 mt-2">
-                                  <Badge variant="outline" className="text-[10px] text-emerald-600 border-emerald-100">Provider Action Required</Badge>
-                                </div>
+                                <p className="text-sm text-slate-500">Provider Action Required</p>
                               </div>
                             </div>
                             <div className="flex items-center gap-2">
@@ -164,27 +258,26 @@ const Dashboard = () => {
               </section>
             )}
 
-            {/* SECTION: Active Logistics */}
-            <section>
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
-                  <Truck className="w-5 h-5 text-emerald-600" />
-                  Active Logistics & Delivery
-                </h2>
-                <Badge className="bg-emerald-100 text-emerald-700">{activeDeliveries.length}</Badge>
-              </div>
-              
-              <div className="space-y-4">
-                {activeDeliveries.length === 0 ? (
-                  <Card className="border-none shadow-sm rounded-3xl p-8 text-center bg-white/50 border border-dashed border-slate-200">
-                    <p className="text-slate-400">No active deliveries in progress.</p>
-                  </Card>
-                ) : (
-                  activeDeliveries.map((t) => (
-                    <motion.div key={t.id} initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }}>
-                      <Card className="border-none shadow-md rounded-2xl overflow-hidden bg-white">
-                        <div className="p-6">
-                          <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-6">
+            {/* GENERAL SECTION: Active Logistics (For non-volunteers) */}
+            {user.role !== 'Volunteer' && (
+              <section>
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
+                    <Truck className="w-5 h-5 text-emerald-600" />
+                    Active Logistics
+                  </h2>
+                </div>
+                
+                <div className="space-y-4">
+                  {activeLogistics.length === 0 ? (
+                    <Card className="border-none shadow-sm rounded-3xl p-8 text-center bg-white/50 border border-dashed border-slate-200">
+                      <p className="text-slate-400">No active deliveries in progress.</p>
+                    </Card>
+                  ) : (
+                    activeLogistics.map((t) => (
+                      <motion.div key={t.id} initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }}>
+                        <Card className="border-none shadow-md rounded-2xl overflow-hidden bg-white">
+                          <div className="p-6">
                             <div className="flex items-start gap-4">
                               <div className={cn(
                                 "w-12 h-12 rounded-2xl flex items-center justify-center shrink-0",
@@ -194,74 +287,19 @@ const Dashboard = () => {
                               </div>
                               <div>
                                 <h3 className="font-bold text-slate-900">{t.itemName}</h3>
-                                <p className="text-sm text-slate-500 flex items-center gap-1">
-                                  <MapPin className="w-3 h-3" /> 
-                                  {t.status === 'In Transit' ? 'On the way to destination' : 'Waiting for a volunteer to pick up'}
+                                <p className="text-sm text-slate-500">
+                                  {t.status === 'In Transit' ? 'On the way to destination' : 'Waiting for a volunteer'}
                                 </p>
-                                <div className="mt-2">
-                                  {t.status === 'Approved' ? (
-                                    <Badge variant="secondary" className="bg-amber-50 text-amber-700 border-none text-[10px]">
-                                      <Info className="w-3 h-3 mr-1" /> Volunteer Action: Claim Pickup
-                                    </Badge>
-                                  ) : (
-                                    <Badge variant="secondary" className="bg-blue-50 text-blue-700 border-none text-[10px]">
-                                      <Info className="w-3 h-3 mr-1" /> Volunteer Action: Confirm Delivery
-                                    </Badge>
-                                  )}
-                                </div>
                               </div>
                             </div>
-
-                            <div className="flex items-center gap-2">
-                              {user.role === 'Volunteer' && t.status === 'Approved' && !t.volunteerId && (
-                                <Button 
-                                  onClick={() => claimDelivery(t.id)}
-                                  className="bg-blue-600 hover:bg-blue-700 text-white rounded-xl"
-                                >
-                                  Claim Delivery
-                                </Button>
-                              )}
-                              {(t.volunteerId === user.id || user.role === 'Admin') && t.status === 'In Transit' && (
-                                <Button 
-                                  onClick={() => updateTransactionStatus(t.id, t.itemId, 'Delivered')}
-                                  className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl"
-                                >
-                                  <CheckCircle2 className="w-4 h-4 mr-2" /> Mark Delivered
-                                </Button>
-                              )}
-                            </div>
                           </div>
-
-                          {/* Logistics Timeline */}
-                          <div className="grid grid-cols-3 gap-2 relative">
-                            <div className="absolute top-4 left-0 w-full h-0.5 bg-slate-100 -z-0" />
-                            {[
-                              { label: 'Accepted', active: true, icon: CheckCircle2, role: 'Provider' },
-                              { label: 'In Transit', active: t.status === 'In Transit', icon: Truck, role: 'Volunteer' },
-                              { label: 'Delivered', active: t.status === 'Delivered', icon: Package, role: 'Volunteer' }
-                            ].map((step, i) => (
-                              <div key={i} className="flex flex-col items-center text-center relative z-10">
-                                <div className={cn(
-                                  "w-8 h-8 rounded-full flex items-center justify-center mb-2 border-2",
-                                  step.active ? "bg-emerald-600 border-emerald-600 text-white" : "bg-white border-slate-200 text-slate-300"
-                                )}>
-                                  <step.icon className="w-4 h-4" />
-                                </div>
-                                <span className={cn(
-                                  "text-[10px] font-bold uppercase tracking-wider",
-                                  step.active ? "text-emerald-600" : "text-slate-400"
-                                )}>{step.label}</span>
-                                <span className="text-[8px] text-slate-400 font-medium">({step.role})</span>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      </Card>
-                    </motion.div>
-                  ))
-                )}
-              </div>
-            </section>
+                        </Card>
+                      </motion.div>
+                    ))
+                  )}
+                </div>
+              </section>
+            )}
           </div>
 
           <div className="space-y-8">
