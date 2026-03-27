@@ -164,12 +164,14 @@ const Dashboard = () => {
                                 </p>
                               </div>
                             </div>
-                            <Button 
-                              onClick={() => claimDelivery(t.id)}
-                              className="bg-blue-600 hover:bg-blue-700 text-white rounded-xl"
-                            >
-                              Claim Delivery
-                            </Button>
+                            {user.role === 'Volunteer' && (
+                              <Button 
+                                onClick={() => claimDelivery(t.id)}
+                                className="bg-blue-600 hover:bg-blue-700 text-white rounded-xl"
+                              >
+                                Claim Delivery
+                              </Button>
+                            )}
                           </div>
                         </Card>
                       </motion.div>
@@ -206,12 +208,14 @@ const Dashboard = () => {
                                 </p>
                               </div>
                             </div>
-                            <Button 
-                              onClick={() => updateTransactionStatus(t.id, t.itemId, 'Delivered')}
-                              className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl"
-                            >
-                              <CheckCircle2 className="w-4 h-4 mr-2" /> Mark Delivered
-                            </Button>
+                            {user.role === 'Volunteer' && (
+                              <Button 
+                                onClick={() => updateTransactionStatus(t.id, t.itemId, 'Delivered')}
+                                className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl"
+                              >
+                                <CheckCircle2 className="w-4 h-4 mr-2" /> Mark Delivered
+                              </Button>
+                            )}
                           </div>
                         </div>
                       </Card>
