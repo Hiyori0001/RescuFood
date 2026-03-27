@@ -18,7 +18,11 @@ const Inventory = () => {
   const { user, inventory, addFoodItem } = useApp();
   const [isAdding, setIsAdding] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [viewMode, setViewMode] = useState<'Mine' | 'All'>(user?.role === 'Admin' ? 'All' : 'Mine');
+  
+  // NGOs and Admins see 'All' by default, others see 'Mine'
+  const [viewMode, setViewMode] = useState<'Mine' | 'All'>(
+    (user?.role === 'Admin' || user?.role === 'NGO') ? 'All' : 'Mine'
+  );
   
   const [formData, setFormData] = useState({
     name: '',
@@ -82,7 +86,7 @@ const Inventory = () => {
           </div>
           
           <div className="flex items-center gap-3">
-            {user?.role === 'Admin' && (
+            {(user?.role === 'Admin' || user?.role === 'NGO') && (
               <div className="flex bg-white p-1 rounded-xl shadow-sm border border-slate-100">
                 <button
                   onClick={() => setViewMode('Mine')}

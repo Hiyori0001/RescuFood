@@ -13,7 +13,7 @@ const Navbar = () => {
   const navItems = [
     { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['Admin', 'Provider', 'NGO', 'Beneficiary', 'Volunteer'] },
     { path: '/marketplace', label: 'Marketplace', icon: ShoppingBasket, roles: ['Admin', 'Provider', 'NGO', 'Beneficiary', 'Volunteer'] },
-    { path: '/inventory', label: 'Inventory', icon: UtensilsCrossed, roles: ['Admin', 'Provider'] },
+    { path: '/inventory', label: 'Inventory', icon: UtensilsCrossed, roles: ['Admin', 'Provider', 'NGO'] },
     { path: '/impact', label: 'Impact', icon: BarChart3, roles: ['Admin', 'Provider', 'NGO', 'Beneficiary', 'Volunteer'] },
     { path: '/admin', label: 'Admin', icon: ShieldCheck, roles: ['Admin'] },
   ];
