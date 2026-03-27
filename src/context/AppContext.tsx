@@ -83,8 +83,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const { data: { session } } = await supabase.auth.getSession();
       setSession(session);
       if (session) {
-        await syncRoleAndFetchProfile(session.user.id);
-        await fetchTransactions(session.user.id);
+        const profile = await syncRoleAndFetchProfile(session.user.id);
+        await fetchTransactions(session.user.id, profile?.role);
       }
       
       await fetchInventory();
@@ -94,11 +94,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     initialize();
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
       setSession(session);
       if (session) {
-        syncRoleAndFetchProfile(session.user.id);
-        fetchTransactions(session.user.id);
+        const profile = await syncRoleAndFetchProfile(session.user.id);
+        fetchTransactions(session.user.id, profile?.role);
       } else {
         setUser(null);
         setTransactions([]);
@@ -115,7 +115,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       .eq('id', userId)
       .single();
 
-    if (error) return;
+    if (error) return null;
 
     const pendingRole = localStorage.getItem('pending_role');
     if (data && pendingRole && data.role === 'Beneficiary' && pendingRole !== 'Beneficiary') {
@@ -130,28 +130,36 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     }
 
-    if (data) {
-      setUser({
-        id: data.id,
-        name: data.full_name || 'User',
-        role: data.role as UserRole,
-      });
-    }
+    const profile: UserProfile = {
+      id: data.id,
+      name: data.full_name || 'User',
+      role: data.role as UserRole,
+    };
+    
+    setUser(profile);
+    return profile;
   };
 
-  const fetchTransactions = async (userId: string) => {
-    // We use a join to get the volunteer's name from the profiles table
-    const { data, error } = await supabase
+  const fetchTransactions = async (userId: string, role?: UserRole) => {
+    let query = supabase
       .from('transactions')
       .select(`
         *,
-        inventory (name),
-        volunteer:profiles!transactions_volunteer_id_fkey (full_name)
-      `)
-      .or(`provider_id.eq.${userId},beneficiary_id.eq.${userId},volunteer_id.eq.${userId},status.eq.Approved`)
-      .order('created_at', { ascending: false });
+        inventory (name)
+      `);
 
-    if (error) return;
+    // If not an Admin, filter by involvement
+    if (role !== 'Admin') {
+      // We use a simpler filter first to avoid issues with missing columns
+      query = query.or(`provider_id.eq.${userId},beneficiary_id.eq.${userId},status.eq.Approved`);
+    }
+
+    const { data, error } = await query.order('created_at', { ascending: false });
+
+    if (error) {
+      console.error("Error fetching transactions:", error);
+      return;
+    }
 
     setTransactions(data.map(t => ({
       id: t.id,
@@ -160,7 +168,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       providerId: t.provider_id,
       beneficiaryId: t.beneficiary_id,
       volunteerId: t.volunteer_id,
-      volunteerName: t.volunteer?.full_name || 'A Volunteer',
       status: t.status,
       createdAt: t.created_at
     })));
@@ -197,8 +204,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (data) {
       setImpactMetrics({
         mealsSaved: data.meals_saved,
-        wasteReduced: data.waste_reduced,
-        communitiesServed: data.communities_served,
+        waste_reduced: data.waste_reduced,
+        communities_served: data.communities_served,
       });
     }
   };
@@ -246,7 +253,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     await supabase.from('inventory').update({ status: 'Requested' }).eq('id', item.id);
     
     await fetchInventory();
-    await fetchTransactions(session.user.id);
+    await fetchTransactions(session.user.id, user?.role);
     showSuccess('Request sent successfully!');
   };
 
@@ -267,7 +274,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
 
     showSuccess('Delivery claimed! You are now in transit.');
-    await fetchTransactions(session.user.id);
+    await fetchTransactions(session.user.id, user?.role);
   };
 
   const updateTransactionStatus = async (transactionId: string, itemId: string, newStatus: string) => {
@@ -281,6 +288,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     let invStatus = 'Requested';
     if (newStatus === 'Delivered') invStatus = 'Delivered';
     if (newStatus === 'Approved') invStatus = 'Allocated';
+    if (newStatus === 'Cancelled') invStatus = 'Available';
     
     await supabase.from('inventory').update({ status: invStatus }).eq('id', itemId);
 
@@ -295,7 +303,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       else await supabase.from('impact_metrics').insert([update]);
     }
 
-    if (session) await fetchTransactions(session.user.id);
+    if (session) await fetchTransactions(session.user.id, user?.role);
     await fetchInventory();
     await fetchImpactMetrics();
     showSuccess(`Status updated to ${newStatus}`);

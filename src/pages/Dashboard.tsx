@@ -15,8 +15,9 @@ const Dashboard = () => {
   if (!user) return <div className="p-20 text-center">Please login to view dashboard.</div>;
 
   // Filter transactions based on involvement
+  // Admins see ALL pending requests, Providers see only theirs
   const incomingRequests = transactions.filter(t => 
-    t.providerId === user.id && t.status === 'Pending'
+    (t.providerId === user.id || user.role === 'Admin') && t.status === 'Pending'
   );
 
   const myActiveTasks = transactions.filter(t => {
@@ -24,7 +25,7 @@ const Dashboard = () => {
     if (isFinished) return false;
 
     // Don't show pending incoming requests here, they have their own section
-    if (t.providerId === user.id && t.status === 'Pending') return false;
+    if ((t.providerId === user.id || user.role === 'Admin') && t.status === 'Pending') return false;
 
     if (user.role === 'Admin') return true;
     
@@ -68,12 +69,12 @@ const Dashboard = () => {
           </div>
         </header>
 
-        {/* Incoming Requests Section for Providers */}
+        {/* Incoming Requests Section */}
         {incomingRequests.length > 0 && (
           <section className="mb-10">
             <h2 className="text-xl font-bold text-slate-900 mb-4 flex items-center gap-2">
               <ArrowDownLeft className="w-5 h-5 text-emerald-600" />
-              Incoming Requests ({incomingRequests.length})
+              {user.role === 'Admin' ? 'All Pending Requests' : 'Incoming Requests'} ({incomingRequests.length})
             </h2>
             <div className="grid gap-4">
               {incomingRequests.map((t) => (
@@ -163,7 +164,7 @@ const Dashboard = () => {
                         </p>
                         {t.status === 'In Transit' && (
                           <p className="text-xs text-blue-600 font-medium mt-1 flex items-center gap-1">
-                            <User className="w-3 h-3" /> {t.volunteerId === user.id ? 'You are delivering this' : `Delivery by ${t.volunteerName}`}
+                            <User className="w-3 h-3" /> {t.volunteerId === user.id ? 'You are delivering this' : `Delivery in progress`}
                           </p>
                         )}
                       </div>
