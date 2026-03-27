@@ -126,39 +126,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           role: data.role as UserRole,
         };
         setUser(profile);
+        fetchTransactions(userId, profile.role);
         return profile;
       } else {
-        // If profile is missing, try to create it from auth metadata
+        // Fallback: Create a temporary profile if DB is slow or missing
         const { data: { user: authUser } } = await supabase.auth.getUser();
         if (authUser) {
-          const pendingRole = localStorage.getItem('pending_role') || 'Beneficiary';
-          const { data: newProfile, error: insertError } = await supabase
-            .from('profiles')
-            .upsert([{
-              id: userId,
-              full_name: authUser.user_metadata?.full_name || authUser.email?.split('@')[0] || 'User',
-              role: pendingRole
-            }])
-            .select()
-            .single();
-          
-          if (newProfile) {
-            const profile: UserProfile = {
-              id: newProfile.id,
-              name: newProfile.full_name || 'User',
-              role: newProfile.role as UserRole,
-            };
-            setUser(profile);
-            localStorage.removeItem('pending_role');
-            return profile;
-          }
+          const tempProfile: UserProfile = {
+            id: userId,
+            name: authUser.user_metadata?.full_name || authUser.email?.split('@')[0] || 'User',
+            role: (localStorage.getItem('pending_role') as UserRole) || 'Beneficiary',
+          };
+          setUser(tempProfile);
+          return tempProfile;
         }
       }
     } catch (e) {
-      console.error("Profile fetch/create error:", e);
+      console.error("Profile fetch error:", e);
     }
     return null;
-  }, []);
+  }, [fetchTransactions]);
 
   const fetchInventory = useCallback(async () => {
     try {
@@ -214,15 +201,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (!isMounted) return;
 
         setSession(initialSession);
+        // Stop loading as soon as we know the session status
+        setLoading(false);
+
         if (initialSession) {
-          const profile = await fetchProfile(initialSession.user.id);
-          if (profile && isMounted) {
-            await fetchTransactions(initialSession.user.id, profile.role);
-          }
+          fetchProfile(initialSession.user.id);
         }
       } catch (error) {
         console.error("Auth initialization error:", error);
-      } finally {
         if (isMounted) setLoading(false);
       }
     };
@@ -237,10 +223,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setSession(currentSession);
       
       if (currentSession) {
-        const profile = await fetchProfile(currentSession.user.id);
-        if (profile && isMounted) {
-          fetchTransactions(currentSession.user.id, profile.role);
-        }
+        fetchProfile(currentSession.user.id);
       } else {
         setUser(null);
         setTransactions([]);
@@ -255,7 +238,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       isMounted = false;
       subscription.unsubscribe();
     };
-  }, [fetchProfile, fetchTransactions, fetchInventory, fetchImpactMetrics]);
+  }, [fetchProfile, fetchInventory, fetchImpactMetrics]);
 
   const addFoodItem = async (item: any) => {
     if (!session?.user) return;
@@ -300,7 +283,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     await supabase.from('inventory').update({ status: 'Requested' }).eq('id', item.id);
     
     await fetchInventory();
-    await fetchTransactions(session.user.id, user?.role);
+    if (user) await fetchTransactions(session.user.id, user.role);
     showSuccess('Request sent successfully!');
   };
 
@@ -321,7 +304,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
 
     showSuccess('Delivery claimed! You are now in transit.');
-    await fetchTransactions(session.user.id, user?.role);
+    if (user) await fetchTransactions(session.user.id, user.role);
   };
 
   const updateTransactionStatus = async (transactionId: string, itemId: string, newStatus: string) => {
@@ -350,7 +333,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       else await supabase.from('impact_metrics').insert([update]);
     }
 
-    if (session) await fetchTransactions(session.user.id, user?.role);
+    if (session && user) await fetchTransactions(session.user.id, user.role);
     await fetchInventory();
     await fetchImpactMetrics();
     showSuccess(`Status updated to ${newStatus}`);
@@ -358,17 +341,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const signOut = async () => {
     try {
-      // Force clear local state first to ensure UI updates immediately
+      // Clear local state IMMEDIATELY
       setUser(null);
       setSession(null);
       setTransactions([]);
       localStorage.removeItem('pending_role');
       
+      // Then call Supabase
       await supabase.auth.signOut();
       showSuccess('Signed out successfully');
     } catch (e) {
       console.error("Sign out error:", e);
-      // Even if API fails, we've cleared local state
     }
   };
 
