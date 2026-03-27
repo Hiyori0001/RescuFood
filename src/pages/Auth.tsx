@@ -17,13 +17,11 @@ const Auth = () => {
   const [selectedRole, setSelectedRole] = useState<string | null>(null);
 
   useEffect(() => {
-    // Redirect immediately if session exists
     if (session) {
       navigate('/dashboard');
     }
   }, [session, navigate]);
 
-  // Save role to localStorage so AppContext can update the profile after signup
   useEffect(() => {
     if (selectedRole) {
       localStorage.setItem('pending_role', selectedRole);
@@ -38,7 +36,11 @@ const Auth = () => {
   ];
 
   if (loading && !session) {
-    return <div className="min-h-screen flex items-center justify-center bg-slate-50">Loading...</div>;
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+        <div className="animate-pulse text-emerald-600 font-medium">Loading...</div>
+      </div>
+    );
   }
 
   return (
@@ -116,14 +118,6 @@ const Auth = () => {
                   }}
                   providers={[]}
                   theme="light"
-                  additionalFields={[
-                    {
-                      name: 'full_name',
-                      label: 'Full Name',
-                      placeholder: 'Your full name',
-                      type: 'text',
-                    }
-                  ]}
                 />
               </Card>
             </motion.div>
