@@ -5,7 +5,7 @@ import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { UtensilsCrossed, Heart, ShieldCheck, Zap, ArrowRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { MadeWithDyad } from '@/components/made-with-by-RescuFood';
+import { MadeWithDyad } from '@/components/made-with-dyad';
 import { cn } from '@/lib/utils';
 
 const Index = () => {
