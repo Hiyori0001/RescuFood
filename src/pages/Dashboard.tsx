@@ -15,11 +15,10 @@ import {
   User, 
   XCircle, 
   ArrowDownLeft, 
-  ArrowUpRight,
   Package,
   History,
   AlertCircle,
-  ChevronRight
+  Info
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -54,10 +53,6 @@ const Dashboard = () => {
     if (user.role === 'Admin' && t.beneficiaryId !== user.id) return true;
     return false;
   });
-
-  const myRequests = transactions.filter(t => 
-    t.beneficiaryId === user.id && t.status !== 'Delivered' && t.status !== 'Cancelled'
-  );
 
   const activeDeliveries = transactions.filter(t => {
     const isActive = t.status === 'Approved' || t.status === 'In Transit';
@@ -140,7 +135,9 @@ const Dashboard = () => {
                                 <p className="text-sm text-slate-500">
                                   {t.providerId === user.id ? 'Requested from your listing' : 'Global Request'}
                                 </p>
-                                <p className="text-[10px] text-slate-400 mt-1 uppercase font-bold">{new Date(t.createdAt).toLocaleDateString()}</p>
+                                <div className="flex items-center gap-2 mt-2">
+                                  <Badge variant="outline" className="text-[10px] text-emerald-600 border-emerald-100">Provider Action Required</Badge>
+                                </div>
                               </div>
                             </div>
                             <div className="flex items-center gap-2">
@@ -167,7 +164,7 @@ const Dashboard = () => {
               </section>
             )}
 
-            {/* SECTION: Active Logistics (The "What's Next" Section) */}
+            {/* SECTION: Active Logistics */}
             <section>
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
@@ -180,7 +177,7 @@ const Dashboard = () => {
               <div className="space-y-4">
                 {activeDeliveries.length === 0 ? (
                   <Card className="border-none shadow-sm rounded-3xl p-8 text-center bg-white/50 border border-dashed border-slate-200">
-                    <p className="text-slate-400">No active deliveries in progress. Once a request is accepted, it will appear here.</p>
+                    <p className="text-slate-400">No active deliveries in progress.</p>
                   </Card>
                 ) : (
                   activeDeliveries.map((t) => (
@@ -201,6 +198,17 @@ const Dashboard = () => {
                                   <MapPin className="w-3 h-3" /> 
                                   {t.status === 'In Transit' ? 'On the way to destination' : 'Waiting for a volunteer to pick up'}
                                 </p>
+                                <div className="mt-2">
+                                  {t.status === 'Approved' ? (
+                                    <Badge variant="secondary" className="bg-amber-50 text-amber-700 border-none text-[10px]">
+                                      <Info className="w-3 h-3 mr-1" /> Volunteer Action: Claim Pickup
+                                    </Badge>
+                                  ) : (
+                                    <Badge variant="secondary" className="bg-blue-50 text-blue-700 border-none text-[10px]">
+                                      <Info className="w-3 h-3 mr-1" /> Volunteer Action: Confirm Delivery
+                                    </Badge>
+                                  )}
+                                </div>
                               </div>
                             </div>
 
@@ -228,9 +236,9 @@ const Dashboard = () => {
                           <div className="grid grid-cols-3 gap-2 relative">
                             <div className="absolute top-4 left-0 w-full h-0.5 bg-slate-100 -z-0" />
                             {[
-                              { label: 'Accepted', active: true, icon: CheckCircle2 },
-                              { label: 'In Transit', active: t.status === 'In Transit', icon: Truck },
-                              { label: 'Delivered', active: t.status === 'Delivered', icon: Package }
+                              { label: 'Accepted', active: true, icon: CheckCircle2, role: 'Provider' },
+                              { label: 'In Transit', active: t.status === 'In Transit', icon: Truck, role: 'Volunteer' },
+                              { label: 'Delivered', active: t.status === 'Delivered', icon: Package, role: 'Volunteer' }
                             ].map((step, i) => (
                               <div key={i} className="flex flex-col items-center text-center relative z-10">
                                 <div className={cn(
@@ -243,6 +251,7 @@ const Dashboard = () => {
                                   "text-[10px] font-bold uppercase tracking-wider",
                                   step.active ? "text-emerald-600" : "text-slate-400"
                                 )}>{step.label}</span>
+                                <span className="text-[8px] text-slate-400 font-medium">({step.role})</span>
                               </div>
                             ))}
                           </div>
