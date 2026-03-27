@@ -12,11 +12,12 @@ import { UtensilsCrossed, Store, Building2, HeartHandshake, User, ArrowLeft } fr
 import { cn } from '@/lib/utils';
 
 const Auth = () => {
-  const { session } = useApp();
+  const { session, loading } = useApp();
   const navigate = useNavigate();
   const [selectedRole, setSelectedRole] = useState<string | null>(null);
 
   useEffect(() => {
+    // Redirect immediately if session exists
     if (session) {
       navigate('/dashboard');
     }
@@ -35,6 +36,10 @@ const Auth = () => {
     { id: 'Beneficiary', label: 'Individual', desc: 'Looking for food assistance', icon: User, color: 'text-rose-600', bg: 'bg-rose-50' },
     { id: 'Volunteer', label: 'Volunteer', desc: 'Help with logistics and delivery', icon: HeartHandshake, color: 'text-amber-600', bg: 'bg-amber-50' },
   ];
+
+  if (loading && !session) {
+    return <div className="min-h-screen flex items-center justify-center bg-slate-50">Loading...</div>;
+  }
 
   return (
     <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6">
