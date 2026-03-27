@@ -3,7 +3,7 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useApp } from '@/context/AppContext';
-import { UtensilsCrossed, LayoutDashboard, ShoppingBasket, BarChart3, UserCircle, ShieldCheck, LogOut } from 'lucide-react';
+import { UtensilsCrossed, LayoutDashboard, ShoppingBasket, BarChart3, UserCircle, ShieldCheck, LogOut, User } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const Navbar = () => {
@@ -50,12 +50,20 @@ const Navbar = () => {
             </Link>
           ) : (
             <div className="flex items-center gap-4">
-              <div className="flex flex-col md:flex-row items-center gap-1 md:gap-2 p-2 text-emerald-700 font-semibold">
-                <div className="w-6 h-6 rounded-full bg-emerald-100 flex items-center justify-center text-[10px]">
+              <Link 
+                to="/profile"
+                className={cn(
+                  "flex flex-col md:flex-row items-center gap-1 md:gap-2 p-2 rounded-xl transition-all",
+                  location.pathname === '/profile' 
+                    ? "text-emerald-600 bg-emerald-50" 
+                    : "text-emerald-700 font-semibold hover:text-emerald-500"
+                )}
+              >
+                <div className="w-6 h-6 rounded-full bg-emerald-100 flex items-center justify-center text-[10px] border border-emerald-200">
                   {user?.name?.[0] || '?'}
                 </div>
-                <span className="text-[10px] md:text-sm hidden md:block">{user?.name || 'Loading...'}</span>
-              </div>
+                <span className="text-[10px] md:text-sm hidden md:block">{user?.name || 'Profile'}</span>
+              </Link>
               <button 
                 onClick={signOut}
                 className="p-2 text-slate-400 hover:text-rose-500 transition-colors"
