@@ -37,6 +37,7 @@ export interface Transaction {
   providerId: string;
   beneficiaryId: string;
   volunteerId?: string;
+  volunteerName?: string;
   status: string;
   createdAt: string;
 }
@@ -116,7 +117,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     if (error) return;
 
-    // If there's a pending role in localStorage, update the profile
     const pendingRole = localStorage.getItem('pending_role');
     if (data && pendingRole && data.role === 'Beneficiary' && pendingRole !== 'Beneficiary') {
       const { error: updateError } = await supabase
