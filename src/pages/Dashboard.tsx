@@ -113,7 +113,7 @@ const Dashboard = () => {
                         </p>
                         {t.status === 'In Transit' && (
                           <p className="text-xs text-blue-600 font-medium mt-1 flex items-center gap-1">
-                            <User className="w-3 h-3" /> Delivery in progress
+                            <User className="w-3 h-3" /> {t.volunteerId === user.id ? 'You are delivering this' : `Delivery by ${t.volunteerName}`}
                           </p>
                         )}
                       </div>

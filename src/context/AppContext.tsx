@@ -140,11 +140,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const fetchTransactions = async (userId: string) => {
+    // We use a join to get the volunteer's name from the profiles table
     const { data, error } = await supabase
       .from('transactions')
       .select(`
         *,
-        inventory (name)
+        inventory (name),
+        volunteer:profiles!transactions_volunteer_id_fkey (full_name)
       `)
       .or(`provider_id.eq.${userId},beneficiary_id.eq.${userId},volunteer_id.eq.${userId},status.eq.Approved`)
       .order('created_at', { ascending: false });
@@ -158,6 +160,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       providerId: t.provider_id,
       beneficiaryId: t.beneficiary_id,
       volunteerId: t.volunteer_id,
+      volunteerName: t.volunteer?.full_name || 'A Volunteer',
       status: t.status,
       createdAt: t.created_at
     })));
