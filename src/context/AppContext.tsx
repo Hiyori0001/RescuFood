@@ -87,9 +87,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           inventory:item_id (name)
         `);
 
-      // If not admin, fetch transactions where user is involved OR tasks available for pickup
       if (role !== 'Admin') {
-        // Volunteers need to see 'Approved' tasks to claim them, and their own claimed tasks
         query = query.or(`provider_id.eq.${userId},beneficiary_id.eq.${userId},volunteer_id.eq.${userId},status.eq.Approved`);
       }
 
@@ -176,8 +174,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (data) {
         setImpactMetrics({
           mealsSaved: data.meals_saved,
-          wasteReduced: data.waste_reduced,
-          communitiesServed: data.communities_served,
+          waste_reduced: data.waste_reduced,
+          communities_served: data.communities_served,
         });
       }
     } catch (e) {
@@ -185,27 +183,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, []);
 
+  // Initial data load
   useEffect(() => {
-    let isMounted = true;
-
-    const initializeAuth = async () => {
-      try {
-        const { data: { session: initialSession } } = await supabase.auth.getSession();
-        if (!isMounted) return;
-
-        setSession(initialSession);
-        setLoading(false);
-
-        if (initialSession) {
-          fetchProfile(initialSession.user.id);
-        }
-      } catch (error) {
-        console.error("[AppContext] Auth initialization error:", error);
-        if (isMounted) setLoading(false);
-      }
-    };
-
-    initializeAuth();
     fetchInventory();
     fetchImpactMetrics();
 
@@ -216,14 +195,27 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       })
       .subscribe();
 
-    const transactionsChannel = supabase
-      .channel('transaction-changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'transactions' }, () => {
-        if (session?.user.id) {
-          fetchTransactions(session.user.id, user?.role);
-        }
-      })
-      .subscribe();
+    return () => {
+      supabase.removeChannel(inventoryChannel);
+    };
+  }, [fetchInventory, fetchImpactMetrics]);
+
+  // Auth listener
+  useEffect(() => {
+    let isMounted = true;
+
+    const checkSession = async () => {
+      const { data: { session: initialSession } } = await supabase.auth.getSession();
+      if (!isMounted) return;
+      
+      setSession(initialSession);
+      if (initialSession) {
+        await fetchProfile(initialSession.user.id);
+      }
+      setLoading(false);
+    };
+
+    checkSession();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, currentSession) => {
       if (!isMounted) return;
@@ -231,26 +223,40 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setSession(currentSession);
       
       if (currentSession) {
-        // Handle pending role assignment for new signups
         const pendingRole = localStorage.getItem('pending_role');
         if (pendingRole && (event === 'SIGNED_IN' || event === 'USER_UPDATED')) {
           await supabase.from('profiles').update({ role: pendingRole }).eq('id', currentSession.user.id);
           localStorage.removeItem('pending_role');
         }
-        fetchProfile(currentSession.user.id);
+        await fetchProfile(currentSession.user.id);
       } else {
         setUser(null);
         setTransactions([]);
       }
+      setLoading(false);
     });
 
     return () => {
       isMounted = false;
       subscription.unsubscribe();
-      supabase.removeChannel(inventoryChannel);
+    };
+  }, [fetchProfile]);
+
+  // Transaction listener
+  useEffect(() => {
+    if (!session?.user.id) return;
+
+    const transactionsChannel = supabase
+      .channel('transaction-changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'transactions' }, () => {
+        fetchTransactions(session.user.id, user?.role);
+      })
+      .subscribe();
+
+    return () => {
       supabase.removeChannel(transactionsChannel);
     };
-  }, [fetchProfile, fetchInventory, fetchImpactMetrics, session?.user.id, user?.role, fetchTransactions]);
+  }, [session?.user.id, user?.role, fetchTransactions]);
 
   const addFoodItem = async (item: any) => {
     if (!session?.user) return;
