@@ -127,28 +127,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (error) throw error;
 
       if (data) {
-        let currentRole = data.role as UserRole;
-        
-        // Check for pending role from signup
-        const pendingRole = localStorage.getItem('pending_role');
-        if (pendingRole && currentRole === 'Beneficiary') {
-          // Update the role in the database
-          const { error: updateError } = await supabase
-            .from('profiles')
-            .update({ role: pendingRole })
-            .eq('id', userId);
-          
-          if (!updateError) {
-            currentRole = pendingRole as UserRole;
-            localStorage.removeItem('pending_role');
-            showSuccess(`Welcome! Your account is set up as a ${currentRole}.`);
-          }
-        }
-
         const profile: UserProfile = {
           id: data.id,
           name: data.full_name || 'User',
-          role: currentRole,
+          role: data.role as UserRole,
         };
         setUser(profile);
         fetchTransactions(userId, profile.role);
@@ -190,13 +172,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, []);
 
-  const fetchImpactMetrics = useCallback(async () => {
+  const fetchImpactMetrics = useCallback(async (userId?: string) => {
     try {
       const { data } = await supabase.from('impact_metrics').select('*').maybeSingle();
       if (data) {
         setImpactMetrics({
           mealsSaved: data.meals_saved,
-          wasteReduced: data.waste_reduced,
+          waste_reduced: data.waste_reduced,
           communitiesServed: data.communities_served,
         });
       }
@@ -251,7 +233,38 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setSession(currentSession);
       
       if (currentSession) {
-        await fetchProfile(currentSession.user.id);
+        // Handle role assignment for new signups with a retry mechanism
+        const pendingRole = localStorage.getItem('pending_role');
+        if (pendingRole) {
+          // Wait a moment for the database trigger to finish creating the profile
+          setTimeout(async () => {
+            const { data: profile } = await supabase
+              .from('profiles')
+              .select('role')
+              .eq('id', currentSession.user.id)
+              .maybeSingle();
+            
+            // Only update if the role is currently the default 'Beneficiary'
+            if (profile && profile.role === 'Beneficiary') {
+              const { error } = await supabase
+                .from('profiles')
+                .update({ role: pendingRole })
+                .eq('id', currentSession.user.id);
+              
+              if (!error) {
+                localStorage.removeItem('pending_role');
+                showSuccess(`Welcome! Your account is set up as a ${pendingRole}.`);
+              }
+            } else if (profile) {
+              // If it's already something else (like Admin), just clear the pending role
+              localStorage.removeItem('pending_role');
+            }
+            
+            fetchProfile(currentSession.user.id);
+          }, 1500); // 1.5 second delay to ensure trigger completion
+        } else {
+          await fetchProfile(currentSession.user.id);
+        }
       } else {
         setUser(null);
         setTransactions([]);
