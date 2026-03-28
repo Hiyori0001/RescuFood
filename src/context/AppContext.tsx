@@ -127,10 +127,28 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (error) throw error;
 
       if (data) {
+        let currentRole = data.role as UserRole;
+        
+        // Check for pending role from signup
+        const pendingRole = localStorage.getItem('pending_role');
+        if (pendingRole && currentRole === 'Beneficiary') {
+          // Update the role in the database
+          const { error: updateError } = await supabase
+            .from('profiles')
+            .update({ role: pendingRole })
+            .eq('id', userId);
+          
+          if (!updateError) {
+            currentRole = pendingRole as UserRole;
+            localStorage.removeItem('pending_role');
+            showSuccess(`Welcome! Your account is set up as a ${currentRole}.`);
+          }
+        }
+
         const profile: UserProfile = {
           id: data.id,
           name: data.full_name || 'User',
-          role: data.role as UserRole,
+          role: currentRole,
         };
         setUser(profile);
         fetchTransactions(userId, profile.role);
@@ -233,23 +251,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setSession(currentSession);
       
       if (currentSession) {
-        const profile = await fetchProfile(currentSession.user.id);
-        
-        // Handle role assignment for new signups
-        const pendingRole = localStorage.getItem('pending_role');
-        if (pendingRole && profile && profile.role === 'Beneficiary') {
-          // Only update if the role is currently the default 'Beneficiary'
-          // and we have a specific role the user selected during signup
-          const { error } = await supabase
-            .from('profiles')
-            .update({ role: pendingRole })
-            .eq('id', currentSession.user.id);
-          
-          if (!error) {
-            localStorage.removeItem('pending_role');
-            fetchProfile(currentSession.user.id); // Refresh profile with new role
-          }
-        }
+        await fetchProfile(currentSession.user.id);
       } else {
         setUser(null);
         setTransactions([]);
