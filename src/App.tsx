@@ -13,6 +13,7 @@ import Marketplace from "./pages/Marketplace";
 import Impact from "./pages/Impact";
 import AdminPanel from "./pages/AdminPanel";
 import Members from "./pages/Members";
+import Profile from "./pages/Profile";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -34,6 +35,7 @@ const App = () => (
             <Route path="/impact" element={<Impact />} />
             <Route path="/admin" element={<AdminPanel />} />
             <Route path="/members" element={<Members />} />
+            <Route path="/profile" element={<Profile />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>

@@ -1,42 +1,18 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { useApp } from '@/context/AppContext';
 import { motion } from 'framer-motion';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from '@/components/ui/dialog';
-import { Truck, CheckCircle2, Clock, MapPin, Star, User, XCircle, ArrowDownLeft, Info, Navigation, Save, Settings, ExternalLink } from 'lucide-react';
+import { Truck, CheckCircle2, Clock, MapPin, Star, User, XCircle, ArrowDownLeft, Navigation, Settings, ExternalLink } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { Link } from 'react-router-dom';
 import RoleInfo from '@/components/RoleInfo';
 
 const Dashboard = () => {
-  const { user, transactions, updateTransactionStatus, claimDelivery, updateLocation, updateProfile } = useApp();
-  const [newLocation, setNewLocation] = useState(user?.location || '');
-  const [isEditingLocation, setIsEditingLocation] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
-  
-  const [profileForm, setProfileForm] = useState({
-    full_name: user?.name || '',
-    bio: user?.bio || '',
-    avatar_url: user?.avatar_url || ''
-  });
-
-  // Sync form state when user data changes
-  useEffect(() => {
-    if (user) {
-      setProfileForm({
-        full_name: user.name || '',
-        bio: user.bio || '',
-        avatar_url: user.avatar_url || ''
-      });
-      setNewLocation(user.location || '');
-    }
-  }, [user]);
+  const { user, transactions, updateTransactionStatus, claimDelivery } = useApp();
 
   if (!user) return <div className="p-20 text-center">Please login to view dashboard.</div>;
 
@@ -70,113 +46,35 @@ const Dashboard = () => {
     window.open(url, '_blank');
   };
 
-  const handleSaveLocation = async () => {
-    await updateLocation(newLocation);
-    setIsEditingLocation(false);
-  };
-
-  const handleUpdateProfile = async () => {
-    setIsSaving(true);
-    try {
-      await updateProfile(profileForm);
-      setIsDialogOpen(false);
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
   return (
     <div className="min-h-screen bg-slate-50 p-6 pb-24 md:pt-24">
       <div className="max-w-5xl mx-auto">
         <header className="mb-8 flex flex-col md:flex-row md:items-center justify-between gap-6">
           <div className="flex items-start gap-4 flex-1">
-            <div className="w-16 h-16 rounded-2xl bg-emerald-100 flex items-center justify-center shrink-0 overflow-hidden border-2 border-white shadow-sm">
+            <Link to="/profile" className="w-16 h-16 rounded-2xl bg-emerald-100 flex items-center justify-center shrink-0 overflow-hidden border-2 border-white shadow-sm hover:opacity-80 transition-opacity">
               {user.avatar_url ? (
                 <img src={user.avatar_url} alt="" className="w-full h-full object-cover" />
               ) : (
                 <User className="w-8 h-8 text-emerald-600" />
               )}
-            </div>
+            </Link>
             <div className="flex-1">
               <div className="flex items-center gap-3">
                 <h1 className="text-3xl font-bold text-slate-900">{user.name}</h1>
-                <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-                  <DialogTrigger asChild>
-                    <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full hover:bg-emerald-50 text-slate-400 hover:text-emerald-600">
-                      <Settings className="w-4 h-4" />
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent className="sm:max-w-[425px] rounded-3xl border-none shadow-2xl">
-                    <DialogHeader>
-                      <DialogTitle className="text-2xl font-bold">Profile Settings</DialogTitle>
-                      <DialogDescription>Update your public profile information here.</DialogDescription>
-                    </DialogHeader>
-                    <div className="grid gap-6 py-4">
-                      <div className="space-y-2">
-                        <label className="text-sm font-bold text-slate-700">Full Name</label>
-                        <Input 
-                          value={profileForm.full_name} 
-                          onChange={e => setProfileForm({...profileForm, full_name: e.target.value})}
-                          className="rounded-xl border-slate-100"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <label className="text-sm font-bold text-slate-700">Bio</label>
-                        <Textarea 
-                          value={profileForm.bio} 
-                          onChange={e => setProfileForm({...profileForm, bio: e.target.value})}
-                          className="rounded-xl border-slate-100 min-h-[100px]"
-                          placeholder="Tell the community about yourself..."
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <label className="text-sm font-bold text-slate-700">Avatar URL</label>
-                        <Input 
-                          value={profileForm.avatar_url} 
-                          onChange={e => setProfileForm({...profileForm, avatar_url: e.target.value})}
-                          className="rounded-xl border-slate-100"
-                          placeholder="https://example.com/avatar.jpg"
-                        />
-                      </div>
-                      <Button 
-                        onClick={handleUpdateProfile} 
-                        disabled={isSaving}
-                        className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl py-6 font-bold"
-                      >
-                        {isSaving ? 'Saving...' : 'Save Changes'}
-                      </Button>
-                    </div>
-                  </DialogContent>
-                </Dialog>
+                <Button asChild variant="ghost" size="icon" className="h-8 w-8 rounded-full hover:bg-emerald-50 text-slate-400 hover:text-emerald-600">
+                  <Link to="/profile"><Settings className="w-4 h-4" /></Link>
+                </Button>
               </div>
               <div className="flex flex-wrap items-center gap-3 mt-2">
                 <RoleInfo role={user.role} className="text-emerald-700 bg-emerald-50 px-3 py-1 rounded-full text-xs" />
                 
                 <div className="flex items-center gap-2 bg-white px-3 py-1 rounded-full border border-slate-100 shadow-sm">
                   <MapPin className="w-3 h-3 text-emerald-600" />
-                  {isEditingLocation ? (
-                    <div className="flex items-center gap-2">
-                      <Input 
-                        value={newLocation} 
-                        onChange={(e) => setNewLocation(e.target.value)}
-                        className="h-6 text-xs w-32 border-none bg-slate-50"
-                        placeholder="Enter location..."
-                      />
-                      <button onClick={handleSaveLocation} className="text-emerald-600 hover:text-emerald-700">
-                        <Save className="w-3 h-3" />
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="flex items-center gap-2">
-                      <button onClick={() => setIsEditingLocation(true)} className="text-xs text-slate-600 hover:text-emerald-600 transition-colors">
-                        {user.location || 'Set Current Location'}
-                      </button>
-                      {user.location && (
-                        <button onClick={() => openMap(user.location)} className="text-slate-400 hover:text-emerald-600">
-                          <ExternalLink className="w-3 h-3" />
-                        </button>
-                      )}
-                    </div>
+                  <span className="text-xs text-slate-600">{user.location || 'Location not set'}</span>
+                  {user.location && (
+                    <button onClick={() => openMap(user.location)} className="text-slate-400 hover:text-emerald-600">
+                      <ExternalLink className="w-3 h-3" />
+                    </button>
                   )}
                 </div>
               </div>
