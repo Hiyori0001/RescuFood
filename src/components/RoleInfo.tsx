@@ -8,6 +8,7 @@ import { UserRole } from '@/context/AppContext';
 interface RoleInfoProps {
   role: UserRole;
   className?: string;
+  showLabel?: boolean;
 }
 
 export const ROLE_DESCRIPTIONS: Record<UserRole, { title: string; desc: string }> = {
@@ -33,19 +34,19 @@ export const ROLE_DESCRIPTIONS: Record<UserRole, { title: string; desc: string }
   }
 };
 
-const RoleInfo: React.FC<RoleInfoProps> = ({ role, className }) => {
+const RoleInfo: React.FC<RoleInfoProps> = ({ role, className, showLabel = true }) => {
   const info = ROLE_DESCRIPTIONS[role];
 
   return (
     <div className={`inline-flex items-center gap-1.5 ${className}`}>
-      <span className="font-bold">{role}</span>
+      {showLabel && <span className="font-bold">{role}</span>}
       <Popover>
         <PopoverTrigger asChild>
           <button className="p-0.5 rounded-full hover:bg-slate-100 transition-colors text-slate-400 hover:text-emerald-600">
             <Info className="w-3.5 h-3.5" />
           </button>
         </PopoverTrigger>
-        <PopoverContent className="w-64 p-4 rounded-2xl shadow-xl border-none bg-white">
+        <PopoverContent className="w-64 p-4 rounded-2xl shadow-xl border-none bg-white z-[100]">
           <h4 className="font-bold text-slate-900 mb-1">{info.title}</h4>
           <p className="text-xs text-slate-600 leading-relaxed">{info.desc}</p>
         </PopoverContent>

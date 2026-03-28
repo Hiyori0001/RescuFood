@@ -10,7 +10,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Card } from '@/components/ui/card';
 import { UtensilsCrossed, Store, Building2, HeartHandshake, ArrowLeft, Info, User } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { ROLE_DESCRIPTIONS } from '@/components/RoleInfo';
+import RoleInfo, { ROLE_DESCRIPTIONS } from '@/components/RoleInfo';
 
 const Auth = () => {
   const { session, loading, refreshProfile } = useApp();
@@ -86,15 +86,21 @@ const Auth = () => {
               {roles.map((role) => (
                 <button
                   key={role.id}
-                  onClick={() => setSelectedRole(role.id)}
-                  className="group flex flex-col p-5 bg-white rounded-2xl border border-slate-100 hover:border-emerald-500 hover:shadow-md transition-all text-left"
+                  onClick={() => {
+                    setSelectedRole(role.id);
+                    localStorage.setItem('pending_role', role.id);
+                  }}
+                  className="group flex flex-col p-5 bg-white rounded-2xl border border-slate-100 hover:border-emerald-500 hover:shadow-md transition-all text-left relative"
                 >
                   <div className="flex items-center gap-4 mb-3">
                     <div className={cn("w-12 h-12 rounded-xl flex items-center justify-center shrink-0", role.bg)}>
                       <role.icon className={cn("w-6 h-6", role.color)} />
                     </div>
-                    <div>
-                      <h3 className="font-bold text-slate-900">{role.label}</h3>
+                    <div className="flex-1">
+                      <div className="flex items-center justify-between">
+                        <h3 className="font-bold text-slate-900">{role.label}</h3>
+                        <RoleInfo role={role.id} showLabel={false} />
+                      </div>
                       <p className="text-xs text-slate-500">{role.desc}</p>
                     </div>
                   </div>
@@ -112,9 +118,15 @@ const Auth = () => {
               <Card className="border-none shadow-xl rounded-[2rem] p-8 bg-white">
                 <div className="mb-6 p-4 bg-emerald-50 rounded-xl flex gap-3 items-start">
                   <Info className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
-                  <p className="text-xs text-emerald-800 font-medium">
-                    You are signing up as a <b>{selectedRole}</b>. {ROLE_DESCRIPTIONS[selectedRole].desc}
-                  </p>
+                  <div className="flex-1">
+                    <div className="flex items-center justify-between mb-1">
+                      <p className="text-xs text-emerald-800 font-bold">Signing up as {selectedRole}</p>
+                      <RoleInfo role={selectedRole} showLabel={false} />
+                    </div>
+                    <p className="text-[10px] text-emerald-700 leading-relaxed">
+                      {ROLE_DESCRIPTIONS[selectedRole].desc}
+                    </p>
+                  </div>
                 </div>
                 <SupabaseAuth
                   supabaseClient={supabase}
