@@ -74,8 +74,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [loading, setLoading] = useState(true);
   const [impactMetrics, setImpactMetrics] = useState({
     mealsSaved: 0,
-    waste_reduced: 0,
-    communities_served: 0,
+    wasteReduced: 0,
+    communitiesServed: 0,
   });
   
   const syncAttempts = useRef(0);

@@ -10,17 +10,49 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Card } from '@/components/ui/card';
 import { UtensilsCrossed, Store, Building2, HeartHandshake, User, ArrowLeft } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { showSuccess } from '@/utils/toast';
 
 const Auth = () => {
-  const { session, loading } = useApp();
+  const { session, loading, refreshProfile } = useApp();
   const navigate = useNavigate();
   const [selectedRole, setSelectedRole] = useState<string | null>(null);
 
   useEffect(() => {
     if (session) {
-      navigate('/dashboard');
+      const finalizeAuth = async () => {
+        const pendingRole = localStorage.getItem('pending_role');
+        if (pendingRole) {
+          // Wait a moment for the trigger to create the profile
+          let retries = 0;
+          while (retries < 5) {
+            const { data: profile } = await supabase
+              .from('profiles')
+              .select('role')
+              .eq('id', session.user.id)
+              .maybeSingle();
+
+            if (profile) {
+              // Profile exists, update the role if it's not already set correctly
+              if (profile.role !== pendingRole) {
+                await supabase
+                  .from('profiles')
+                  .update({ role: pendingRole })
+                  .eq('id', session.user.id);
+              }
+              localStorage.removeItem('pending_role');
+              break;
+            }
+            // Wait 500ms before next check
+            await new Promise(resolve => setTimeout(resolve, 500));
+            retries++;
+          }
+        }
+        await refreshProfile();
+        navigate('/dashboard');
+      };
+      finalizeAuth();
     }
-  }, [session, navigate]);
+  }, [session, navigate, refreshProfile]);
 
   useEffect(() => {
     if (selectedRole) {
