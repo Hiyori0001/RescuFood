@@ -8,52 +8,22 @@ import { ThemeSupa } from '@supabase/auth-ui-shared';
 import { supabase } from '@/integrations/supabase/client';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Card } from '@/components/ui/card';
-import { UtensilsCrossed, Store, Building2, HeartHandshake, ArrowLeft } from 'lucide-react';
+import { UtensilsCrossed, Store, Building2, HeartHandshake, User, ArrowLeft } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const Auth = () => {
-  const { session, loading, refreshProfile } = useApp();
+  const { session, loading } = useApp();
   const navigate = useNavigate();
   const [selectedRole, setSelectedRole] = useState<string | null>(null);
 
   useEffect(() => {
+    // Redirect immediately if session exists
     if (session) {
-      const finalizeAuth = async () => {
-        const pendingRole = localStorage.getItem('pending_role');
-        if (pendingRole) {
-          // Wait a moment for the trigger to create the profile
-          let retries = 0;
-          while (retries < 5) {
-            const { data: profile } = await supabase
-              .from('profiles')
-              .select('role')
-              .eq('id', session.user.id)
-              .maybeSingle();
-
-            if (profile) {
-              // ONLY update if the role is currently 'Volunteer' (the default)
-              // This prevents overwriting existing roles like Admin during login.
-              if (profile.role === 'Volunteer' && pendingRole !== 'Volunteer') {
-                await supabase
-                  .from('profiles')
-                  .update({ role: pendingRole })
-                  .eq('id', session.user.id);
-              }
-              localStorage.removeItem('pending_role');
-              break;
-            }
-            // Wait 500ms before next check
-            await new Promise(resolve => setTimeout(resolve, 500));
-            retries++;
-          }
-        }
-        await refreshProfile();
-        navigate('/dashboard');
-      };
-      finalizeAuth();
+      navigate('/dashboard');
     }
-  }, [session, navigate, refreshProfile]);
+  }, [session, navigate]);
 
+  // Save role to localStorage so AppContext can update the profile after signup
   useEffect(() => {
     if (selectedRole) {
       localStorage.setItem('pending_role', selectedRole);
@@ -63,15 +33,12 @@ const Auth = () => {
   const roles = [
     { id: 'Provider', label: 'Food Provider', desc: 'Restaurants, Hotels, Groceries', icon: Store, color: 'text-blue-600', bg: 'bg-blue-50' },
     { id: 'NGO', label: 'NGO / Charity', desc: 'Distribute food to those in need', icon: Building2, color: 'text-emerald-600', bg: 'bg-emerald-50' },
+    { id: 'Beneficiary', label: 'Individual', desc: 'Looking for food assistance', icon: User, color: 'text-rose-600', bg: 'bg-rose-50' },
     { id: 'Volunteer', label: 'Volunteer', desc: 'Help with logistics and delivery', icon: HeartHandshake, color: 'text-amber-600', bg: 'bg-amber-50' },
   ];
 
   if (loading && !session) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50">
-        <div className="animate-pulse text-emerald-600 font-medium">Loading...</div>
-      </div>
-    );
+    return <div className="min-h-screen flex items-center justify-center bg-slate-50">Loading...</div>;
   }
 
   return (
@@ -149,6 +116,14 @@ const Auth = () => {
                   }}
                   providers={[]}
                   theme="light"
+                  additionalFields={[
+                    {
+                      name: 'full_name',
+                      label: 'Full Name',
+                      placeholder: 'Your full name',
+                      type: 'text',
+                    }
+                  ]}
                 />
               </Card>
             </motion.div>

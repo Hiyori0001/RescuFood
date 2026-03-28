@@ -1,11 +1,11 @@
 "use client";
 
-import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
+import React, { createContext, useContext, useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { showError, showSuccess } from '@/utils/toast';
 import { Session } from '@supabase/supabase-js';
 
-export type UserRole = 'Admin' | 'Provider' | 'NGO' | 'Volunteer';
+export type UserRole = 'Admin' | 'Provider' | 'NGO' | 'Beneficiary' | 'Volunteer';
 
 export interface UserProfile {
   id: string;
@@ -77,74 +77,152 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     wasteReduced: 0,
     communitiesServed: 0,
   });
-  
-  const syncAttempts = useRef(0);
 
-  const fetchTransactions = useCallback(async (userId: string, role?: UserRole) => {
+  useEffect(() => {
+    const initialize = async () => {
+      const timeoutId = setTimeout(() => setLoading(false), 5000);
+
+      try {
+        const { data: { session: initialSession } } = await supabase.auth.getSession();
+        setSession(initialSession);
+        
+        if (initialSession) {
+          const profile = await syncRoleAndFetchProfile(initialSession.user.id);
+          if (profile) {
+            await fetchTransactions(initialSession.user.id, profile.role);
+          }
+        }
+        
+        await Promise.allSettled([
+          fetchInventory(),
+          fetchImpactMetrics()
+        ]);
+      } catch (error) {
+        console.error("[AppContext] Initialization error:", error);
+      } finally {
+        clearTimeout(timeoutId);
+        setLoading(false);
+      }
+    };
+
+    initialize();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, currentSession) => {
+      setSession(currentSession);
+      
+      if (currentSession) {
+        const profile = await syncRoleAndFetchProfile(currentSession.user.id);
+        if (profile) {
+          fetchTransactions(currentSession.user.id, profile.role);
+        }
+      } else {
+        setUser(null);
+        setTransactions([]);
+      }
+      
+      if (event === 'SIGNED_OUT') {
+        setUser(null);
+        setSession(null);
+        setTransactions([]);
+        localStorage.removeItem('pending_role');
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  const syncRoleAndFetchProfile = async (userId: string, retries = 3) => {
+    try {
+      let profileData = null;
+      
+      for (let i = 0; i < retries; i++) {
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', userId)
+          .maybeSingle();
+        
+        if (data) {
+          profileData = data;
+          break;
+        }
+        
+        if (i < retries - 1) {
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+      }
+
+      // Fallback: If profile still doesn't exist for an authenticated user, create it
+      if (!profileData) {
+        const { data: { user: authUser } } = await supabase.auth.getUser();
+        if (authUser) {
+          const pendingRole = localStorage.getItem('pending_role') || 'Beneficiary';
+          const { data: newProfile, error: insertError } = await supabase
+            .from('profiles')
+            .insert([{
+              id: userId,
+              full_name: authUser.user_metadata?.full_name || 'User',
+              role: pendingRole
+            }])
+            .select()
+            .single();
+          
+          if (!insertError) {
+            profileData = newProfile;
+            localStorage.removeItem('pending_role');
+          }
+        }
+      }
+
+      if (!profileData) return null;
+
+      const profile: UserProfile = {
+        id: profileData.id,
+        name: profileData.full_name || 'User',
+        role: profileData.role as UserRole,
+      };
+      
+      setUser(profile);
+      return profile;
+    } catch (e) {
+      console.error("[AppContext] Profile sync error:", e);
+      return null;
+    }
+  };
+
+  const fetchTransactions = async (userId: string, role?: UserRole) => {
     try {
       let query = supabase
         .from('transactions')
         .select(`
           *,
-          inventory:item_id (name)
+          inventory (name)
         `);
 
       if (role !== 'Admin') {
-        if (role === 'Volunteer') {
-          query = query.or(`status.eq.Approved,volunteer_id.eq.${userId},status.eq.In Transit`);
-        } else {
-          query = query.or(`provider_id.eq.${userId},beneficiary_id.eq.${userId}`);
-        }
+        query = query.or(`provider_id.eq.${userId},beneficiary_id.eq.${userId},status.eq.Approved`);
       }
 
       const { data, error } = await query.order('created_at', { ascending: false });
+
       if (error) throw error;
 
-      setTransactions((data || []).map(t => {
-        const inv = Array.isArray(t.inventory) ? t.inventory[0] : t.inventory;
-        return {
-          id: t.id,
-          itemId: t.item_id,
-          itemName: inv?.name || 'Unknown Item',
-          providerId: t.provider_id,
-          beneficiaryId: t.beneficiary_id,
-          volunteerId: t.volunteer_id,
-          status: t.status,
-          createdAt: t.created_at
-        };
-      }));
+      setTransactions(data.map(t => ({
+        id: t.id,
+        itemId: t.item_id,
+        itemName: t.inventory?.name || 'Unknown Item',
+        providerId: t.provider_id,
+        beneficiaryId: t.beneficiary_id,
+        volunteerId: t.volunteer_id,
+        status: t.status,
+        createdAt: t.created_at
+      })));
     } catch (e) {
       console.error("[AppContext] Fetch transactions error:", e);
     }
-  }, []);
+  };
 
-  const fetchProfile = useCallback(async (userId: string) => {
-    try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', userId)
-        .maybeSingle();
-      
-      if (error) throw error;
-
-      if (data) {
-        const profile: UserProfile = {
-          id: data.id,
-          name: data.full_name || 'User',
-          role: data.role as UserRole,
-        };
-        setUser(profile);
-        fetchTransactions(userId, profile.role);
-        return profile;
-      }
-    } catch (e) {
-      console.error("[AppContext] Profile fetch error:", e);
-    }
-    return null;
-  }, [fetchTransactions]);
-
-  const fetchInventory = useCallback(async () => {
+  const fetchInventory = async () => {
     try {
       const { data, error } = await supabase
         .from('inventory')
@@ -153,7 +231,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
       if (error) throw error;
 
-      setInventory((data || []).map(item => ({
+      setInventory(data.map(item => ({
         id: item.id,
         name: item.name,
         type: item.type,
@@ -172,9 +250,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } catch (e) {
       console.error("[AppContext] Fetch inventory error:", e);
     }
-  }, []);
+  };
 
-  const fetchImpactMetrics = useCallback(async () => {
+  const fetchImpactMetrics = async () => {
     try {
       const { data } = await supabase.from('impact_metrics').select('*').maybeSingle();
       if (data) {
@@ -187,114 +265,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } catch (e) {
       console.error("[AppContext] Fetch impact metrics error:", e);
     }
-  }, []);
-
-  // Dedicated effect to handle role assignment for new signups
-  useEffect(() => {
-    if (!session?.user.id) return;
-
-    const syncRole = async () => {
-      const pendingRole = localStorage.getItem('pending_role');
-      if (!pendingRole) return;
-
-      // Try to fetch the profile
-      const { data: profile, error: fetchError } = await supabase
-        .from('profiles')
-        .select('role')
-        .eq('id', session.user.id)
-        .maybeSingle();
-
-      if (fetchError) return;
-
-      if (profile) {
-        // ONLY update if the role is currently 'Volunteer' (the default) 
-        // and we have a different pending role. This prevents overwriting 
-        // existing roles like Admin during login.
-        if (profile.role === 'Volunteer' && pendingRole !== 'Volunteer') {
-          const { error: updateError } = await supabase
-            .from('profiles')
-            .update({ role: pendingRole })
-            .eq('id', session.user.id);
-          
-          if (!updateError) {
-            localStorage.removeItem('pending_role');
-            showSuccess(`Account successfully set up as ${pendingRole}`);
-            fetchProfile(session.user.id);
-          }
-        } else {
-          // Already set or shouldn't be overwritten
-          localStorage.removeItem('pending_role');
-          fetchProfile(session.user.id);
-        }
-      } else if (syncAttempts.current < 10) {
-        // Profile doesn't exist yet, retry in a bit
-        syncAttempts.current++;
-        setTimeout(syncRole, 1000);
-      }
-    };
-
-    syncRole();
-  }, [session, fetchProfile]);
-
-  useEffect(() => {
-    let isMounted = true;
-
-    const initializeAuth = async () => {
-      try {
-        const { data: { session: initialSession } } = await supabase.auth.getSession();
-        if (!isMounted) return;
-
-        setSession(initialSession);
-        setLoading(false);
-
-        if (initialSession) {
-          fetchProfile(initialSession.user.id);
-        }
-      } catch (error) {
-        console.error("[AppContext] Auth initialization error:", error);
-        if (isMounted) setLoading(false);
-      }
-    };
-
-    initializeAuth();
-    fetchInventory();
-    fetchImpactMetrics();
-
-    const inventoryChannel = supabase
-      .channel('inventory-changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'inventory' }, () => {
-        fetchInventory();
-      })
-      .subscribe();
-
-    const transactionsChannel = supabase
-      .channel('transaction-changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'transactions' }, () => {
-        if (session?.user.id) {
-          fetchTransactions(session.user.id, user?.role);
-        }
-      })
-      .subscribe();
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, currentSession) => {
-      if (!isMounted) return;
-      setSession(currentSession);
-      
-      if (currentSession) {
-        fetchProfile(currentSession.user.id);
-      } else {
-        setUser(null);
-        setTransactions([]);
-      }
-    });
-
-    return () => {
-      isMounted = false;
-      subscription.unsubscribe();
-      supabase.removeChannel(inventoryChannel);
-      supabase.removeChannel(transactionsChannel);
-    };
-  }, [fetchProfile, fetchInventory, fetchImpactMetrics, session?.user.id, user?.role, fetchTransactions]);
+  };
 
   const addFoodItem = async (item: any) => {
     if (!session?.user) return;
@@ -318,6 +289,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       showError('Failed to add item');
       throw error;
     }
+    await fetchInventory();
   };
 
   const requestFood = async (item: FoodItem) => {
@@ -336,6 +308,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
 
     await supabase.from('inventory').update({ status: 'Requested' }).eq('id', item.id);
+    
+    await fetchInventory();
+    await fetchTransactions(session.user.id, user?.role);
     showSuccess('Request sent successfully!');
   };
 
@@ -356,6 +331,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
 
     showSuccess('Delivery claimed! You are now in transit.');
+    await fetchTransactions(session.user.id, user?.role);
   };
 
   const updateTransactionStatus = async (transactionId: string, itemId: string, newStatus: string) => {
@@ -384,24 +360,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       else await supabase.from('impact_metrics').insert([update]);
     }
 
+    if (session) await fetchTransactions(session.user.id, user?.role);
+    await fetchInventory();
+    await fetchImpactMetrics();
     showSuccess(`Status updated to ${newStatus}`);
   };
 
   const signOut = async () => {
-    try {
-      setUser(null);
-      setSession(null);
-      setTransactions([]);
-      localStorage.removeItem('pending_role');
-      await supabase.auth.signOut();
-      showSuccess('Signed out successfully');
-    } catch (e) {
-      console.error("[AppContext] Sign out error:", e);
-    }
+    await supabase.auth.signOut();
+    setUser(null);
+    setSession(null);
+    localStorage.removeItem('pending_role');
   };
 
   const refreshProfile = async () => {
-    if (session?.user.id) await fetchProfile(session.user.id);
+    if (session?.user.id) await syncRoleAndFetchProfile(session.user.id);
   };
 
   return (

@@ -3,19 +3,18 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useApp } from '@/context/AppContext';
-import { UtensilsCrossed, LayoutDashboard, ShoppingBasket, BarChart3, UserCircle, ShieldCheck, LogOut, Users } from 'lucide-react';
+import { UtensilsCrossed, LayoutDashboard, ShoppingBasket, BarChart3, UserCircle, ShieldCheck, LogOut } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const Navbar = () => {
-  const { user, session, signOut } = useApp();
+  const { user, signOut } = useApp();
   const location = useLocation();
 
   const navItems = [
-    { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['Admin', 'Provider', 'NGO', 'Volunteer'] },
-    { path: '/marketplace', label: 'Marketplace', icon: ShoppingBasket, roles: ['Admin', 'Provider', 'NGO', 'Volunteer'] },
-    { path: '/members', label: 'Members', icon: Users, roles: ['Admin', 'Provider', 'NGO', 'Volunteer'] },
+    { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['Admin', 'Provider', 'NGO', 'Beneficiary', 'Volunteer'] },
+    { path: '/marketplace', label: 'Marketplace', icon: ShoppingBasket, roles: ['Admin', 'Provider', 'NGO', 'Beneficiary', 'Volunteer'] },
     { path: '/inventory', label: 'Inventory', icon: UtensilsCrossed, roles: ['Admin', 'Provider', 'NGO'] },
-    { path: '/impact', label: 'Impact', icon: BarChart3, roles: ['Admin', 'Provider', 'NGO', 'Volunteer'] },
+    { path: '/impact', label: 'Impact', icon: BarChart3, roles: ['Admin', 'Provider', 'NGO', 'Beneficiary', 'Volunteer'] },
     { path: '/admin', label: 'Admin', icon: ShieldCheck, roles: ['Admin'] },
   ];
 
@@ -44,27 +43,19 @@ const Navbar = () => {
             </Link>
           ))}
           
-          {!session ? (
+          {!user ? (
             <Link to="/auth" className="flex flex-col md:flex-row items-center gap-1 md:gap-2 p-2 text-slate-500">
               <UserCircle className="w-5 h-5" />
               <span className="text-[10px] md:text-sm font-medium">Login</span>
             </Link>
           ) : (
             <div className="flex items-center gap-4">
-              <Link 
-                to="/profile"
-                className={cn(
-                  "flex flex-col md:flex-row items-center gap-1 md:gap-2 p-2 rounded-xl transition-all",
-                  location.pathname === '/profile' 
-                    ? "text-emerald-600 bg-emerald-50" 
-                    : "text-emerald-700 font-semibold hover:text-emerald-500"
-                )}
-              >
-                <div className="w-6 h-6 rounded-full bg-emerald-100 flex items-center justify-center text-[10px] border border-emerald-200">
-                  {user?.name?.[0] || '?'}
+              <div className="flex flex-col md:flex-row items-center gap-1 md:gap-2 p-2 text-emerald-700 font-semibold">
+                <div className="w-6 h-6 rounded-full bg-emerald-100 flex items-center justify-center text-[10px]">
+                  {user.name[0]}
                 </div>
-                <span className="text-[10px] md:text-sm hidden md:block">{user?.name || 'Profile'}</span>
-              </Link>
+                <span className="text-[10px] md:text-sm hidden md:block">{user.name}</span>
+              </div>
               <button 
                 onClick={signOut}
                 className="p-2 text-slate-400 hover:text-rose-500 transition-colors"
