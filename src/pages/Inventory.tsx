@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Plus, Clock, AlertTriangle, ChefHat, ShieldCheck, CheckCircle2, ListFilter } from 'lucide-react';
+import { Plus, Clock, AlertTriangle, ChefHat, ShieldCheck, CheckCircle2, ListFilter, Heart } from 'lucide-react';
 import { showSuccess } from '@/utils/toast';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -72,16 +72,18 @@ const Inventory = () => {
     return recipes[ingredient] || 'Mixed Vegetable Stew';
   };
 
+  const isDonor = user?.role === 'Donor';
+
   return (
     <div className="min-h-screen bg-slate-50 p-6 pb-24 md:pt-24">
       <div className="max-w-4xl mx-auto">
         <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
           <div>
             <h1 className="text-3xl font-bold text-slate-900">
-              {viewMode === 'All' ? 'Global Inventory' : 'My Inventory'}
+              {viewMode === 'All' ? 'Global Inventory' : isDonor ? 'My Donations' : 'My Inventory'}
             </h1>
             <p className="text-slate-500">
-              {viewMode === 'All' ? 'Monitoring all food listings across the platform' : 'Manage your surplus food listings'}
+              {viewMode === 'All' ? 'Monitoring all food listings across the platform' : isDonor ? 'Manage your food donations' : 'Manage your surplus food listings'}
             </p>
           </div>
           
@@ -109,12 +111,12 @@ const Inventory = () => {
               </div>
             )}
             
-            {(user?.role === 'Provider' || user?.role === 'Admin') && (
+            {(user?.role === 'Provider' || user?.role === 'Admin' || user?.role === 'Donor') && (
               <Button 
                 onClick={() => setIsAdding(!isAdding)}
                 className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl"
               >
-                {isAdding ? 'Cancel' : <><Plus className="w-4 h-4 mr-2" /> List Food</>}
+                {isAdding ? 'Cancel' : <>{isDonor ? <Heart className="w-4 h-4 mr-2" /> : <Plus className="w-4 h-4 mr-2" />} {isDonor ? 'Donate Food' : 'List Food'}</>}
               </Button>
             )}
           </div>
@@ -128,7 +130,7 @@ const Inventory = () => {
           >
             <Card className="border-none shadow-lg rounded-3xl">
               <CardHeader>
-                <CardTitle>List New Surplus Item</CardTitle>
+                <CardTitle>{isDonor ? 'Donate Surplus Food' : 'List New Surplus Item'}</CardTitle>
               </CardHeader>
               <CardContent>
                 <form onSubmit={handleSubmit} className="grid md:grid-cols-2 gap-6">
@@ -173,14 +175,17 @@ const Inventory = () => {
                   </div>
                   <div className="space-y-2">
                     <Label>Pricing Strategy</Label>
-                    <Select onValueChange={(v: any) => setFormData({...formData, pricing: v})}>
+                    <Select 
+                      defaultValue={isDonor ? 'Donated' : undefined}
+                      onValueChange={(v: any) => setFormData({...formData, pricing: v})}
+                    >
                       <SelectTrigger>
                         <SelectValue placeholder="Select pricing" />
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="Donated">Donated (Free)</SelectItem>
-                        <SelectItem value="Base-price">Base-price (NGOs)</SelectItem>
-                        <SelectItem value="Discounted">Discounted Sale</SelectItem>
+                        {!isDonor && <SelectItem value="Base-price">Base-price (NGOs)</SelectItem>}
+                        {!isDonor && <SelectItem value="Discounted">Discounted Sale</SelectItem>}
                       </SelectContent>
                     </Select>
                   </div>
@@ -222,7 +227,7 @@ const Inventory = () => {
                     disabled={isSubmitting || !formData.isSafetyVerified}
                     className="md:col-span-2 bg-emerald-600 hover:bg-emerald-700 text-white py-6 rounded-xl font-bold"
                   >
-                    {isSubmitting ? 'Listing...' : 'Confirm Listing'}
+                    {isSubmitting ? 'Listing...' : isDonor ? 'Confirm Donation' : 'Confirm Listing'}
                   </Button>
                 </form>
               </CardContent>
@@ -235,7 +240,7 @@ const Inventory = () => {
             <div className="text-center py-20 bg-white rounded-3xl border-2 border-dashed border-slate-200">
               <p className="text-slate-400">No items found in this view.</p>
               {viewMode === 'Mine' && (
-                <p className="text-xs text-slate-400 mt-2">Click "List Food" to add your first surplus item.</p>
+                <p className="text-xs text-slate-400 mt-2">Click "{isDonor ? 'Donate Food' : 'List Food'}" to add your first surplus item.</p>
               )}
             </div>
           ) : (

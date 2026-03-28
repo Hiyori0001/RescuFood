@@ -3,16 +3,16 @@
 import React from 'react';
 import { useApp } from '@/context/AppContext';
 import { motion } from 'framer-motion';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Truck, CheckCircle2, Clock, MapPin, Star, User, XCircle, ArrowDownLeft, Navigation, Settings, ExternalLink } from 'lucide-react';
+import { Truck, CheckCircle2, Clock, MapPin, Star, User, XCircle, ArrowDownLeft, Navigation, Settings, ExternalLink, Heart, Leaf, Utensils } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Link } from 'react-router-dom';
 import RoleInfo from '@/components/RoleInfo';
 
 const Dashboard = () => {
-  const { user, transactions, updateTransactionStatus, claimDelivery } = useApp();
+  const { user, transactions, updateTransactionStatus, claimDelivery, inventory } = useApp();
 
   if (!user) return <div className="p-20 text-center">Please login to view dashboard.</div>;
 
@@ -34,6 +34,8 @@ const Dashboard = () => {
     t.status === 'Delivered' && 
     (user.role === 'Admin' || t.providerId === user.id || t.beneficiaryId === user.id || t.volunteerId === user.id)
   ).length;
+
+  const myDonations = inventory.filter(item => item.providerId === user.id);
 
   const openMap = (location?: string) => {
     if (!location) return;
@@ -97,6 +99,49 @@ const Dashboard = () => {
             </div>
           </div>
         </header>
+
+        {user.role === 'Donor' && (
+          <section className="mb-10">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <Card className="border-none shadow-sm rounded-3xl bg-emerald-600 text-white">
+                <CardContent className="p-6">
+                  <div className="flex items-center gap-4 mb-4">
+                    <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center">
+                      <Heart className="w-6 h-6 text-white" />
+                    </div>
+                    <h3 className="font-bold">Your Impact</h3>
+                  </div>
+                  <p className="text-3xl font-bold mb-1">{completedCount * 10}</p>
+                  <p className="text-xs text-emerald-100">People fed through your donations</p>
+                </CardContent>
+              </Card>
+              <Card className="border-none shadow-sm rounded-3xl bg-white">
+                <CardContent className="p-6">
+                  <div className="flex items-center gap-4 mb-4">
+                    <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center">
+                      <Leaf className="w-6 h-6 text-blue-600" />
+                    </div>
+                    <h3 className="font-bold text-slate-900">CO2 Saved</h3>
+                  </div>
+                  <p className="text-3xl font-bold text-slate-900 mb-1">{completedCount * 5}kg</p>
+                  <p className="text-xs text-slate-500">Greenhouse gases prevented</p>
+                </CardContent>
+              </Card>
+              <Card className="border-none shadow-sm rounded-3xl bg-white">
+                <CardContent className="p-6">
+                  <div className="flex items-center gap-4 mb-4">
+                    <div className="w-10 h-10 rounded-xl bg-amber-50 flex items-center justify-center">
+                      <Utensils className="w-6 h-6 text-amber-600" />
+                    </div>
+                    <h3 className="font-bold text-slate-900">Active Donations</h3>
+                  </div>
+                  <p className="text-3xl font-bold text-slate-900 mb-1">{myDonations.filter(d => d.status === 'Available').length}</p>
+                  <p className="text-xs text-slate-500">Items currently in marketplace</p>
+                </CardContent>
+              </Card>
+            </div>
+          </section>
+        )}
 
         {incomingRequests.length > 0 && (
           <section className="mb-10">

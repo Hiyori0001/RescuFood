@@ -231,11 +231,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           if (!updateError) {
             localStorage.removeItem('pending_role');
             showSuccess(`Account successfully set up as ${pendingRole}`);
-            fetchProfile(session.user.id);
+            await fetchProfile(session.user.id);
           }
         } else {
           localStorage.removeItem('pending_role');
-          fetchProfile(session.user.id);
+          await fetchProfile(session.user.id);
         }
       } else if (syncAttempts.current < 10) {
         syncAttempts.current++;
@@ -258,7 +258,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setLoading(false);
 
         if (initialSession) {
-          fetchProfile(initialSession.user.id);
+          await fetchProfile(initialSession.user.id);
         }
       } catch (error) {
         console.error("[AppContext] Auth initialization error:", error);
@@ -291,7 +291,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setSession(currentSession);
       
       if (currentSession) {
-        fetchProfile(currentSession.user.id);
+        await fetchProfile(currentSession.user.id);
       } else {
         setUser(null);
         setTransactions([]);
@@ -403,7 +403,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (error) showError('Failed to update location');
     else {
       showSuccess('Location updated!');
-      fetchProfile(session.user.id);
+      await fetchProfile(session.user.id);
     }
   };
 
@@ -413,7 +413,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (error) showError('Failed to update profile');
     else {
       showSuccess('Profile updated!');
-      fetchProfile(session.user.id);
+      await fetchProfile(session.user.id);
     }
   };
 

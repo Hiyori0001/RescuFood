@@ -7,7 +7,7 @@ import { UtensilsCrossed, LayoutDashboard, ShoppingBasket, BarChart3, UserCircle
 import { cn } from '@/lib/utils';
 
 const Navbar = () => {
-  const { user, signOut } = useApp();
+  const { user, signOut, loading } = useApp();
   const location = useLocation();
 
   const navItems = [
@@ -19,6 +19,20 @@ const Navbar = () => {
     { path: '/members', label: 'Members', icon: Users, roles: ['Admin'] },
   ];
 
+  // If loading and no user, show minimal navbar
+  if (loading && !user) {
+    return (
+      <nav className="fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-emerald-100 px-4 py-2 md:top-0 md:bottom-auto md:border-b md:border-t-0">
+        <div className="max-w-7xl mx-auto flex items-center justify-between">
+          <div className="flex items-center gap-2 text-emerald-600 font-bold text-xl">
+            <UtensilsCrossed className="w-6 h-6" />
+            <span>RescuFood</span>
+          </div>
+        </div>
+      </nav>
+    );
+  }
+
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-emerald-100 px-4 py-2 md:top-0 md:bottom-auto md:border-b md:border-t-0">
       <div className="max-w-7xl mx-auto flex items-center justify-between">
@@ -28,7 +42,7 @@ const Navbar = () => {
         </Link>
 
         <div className="flex flex-1 justify-around md:justify-end md:gap-8">
-          {navItems.filter(item => !user || item.roles.includes(user.role)).map((item) => (
+          {user && navItems.filter(item => item.roles.includes(user.role)).map((item) => (
             <Link
               key={item.path}
               to={item.path}
