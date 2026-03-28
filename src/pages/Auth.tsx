@@ -138,7 +138,12 @@ const Auth = () => {
                 </button>
               ))}
               <div className="mt-4 text-center">
-                <p className="text-xs text-slate-400">Already have an account? Select any role to sign in.</p>
+                <button 
+                  onClick={() => setSelectedRole('Volunteer')} // Default to any role just to show the form
+                  className="text-sm text-emerald-600 font-semibold hover:underline"
+                >
+                  Already have an account? Sign In
+                </button>
               </div>
             </motion.div>
           ) : (
