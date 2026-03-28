@@ -205,50 +205,31 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, []);
 
   useEffect(() => {
-    let isMounted = true;
-
-    const initializeAuth = async () => {
-      try {
-        const { data: { session: initialSession } } = await supabase.auth.getSession();
-        if (!isMounted) return;
-
-        setSession(initialSession);
-        if (initialSession) {
-          await fetchProfile(initialSession.user.id);
-        }
-        setLoading(false);
-      } catch (error) {
-        console.error("[AppContext] Auth initialization error:", error);
-        if (isMounted) setLoading(false);
+    // Initial session check
+    supabase.auth.getSession().then(({ data: { session: initialSession } }) => {
+      setSession(initialSession);
+      if (initialSession) {
+        fetchProfile(initialSession.user.id);
       }
-    };
+      setLoading(false);
+    });
 
-    initializeAuth();
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, currentSession) => {
+      setSession(currentSession);
+      if (currentSession) {
+        fetchProfile(currentSession.user.id);
+      } else {
+        setUser(null);
+        setTransactions([]);
+      }
+      setLoading(false);
+    });
+
     fetchInventory();
     fetchImpactMetrics();
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, currentSession) => {
-      if (!isMounted) return;
-      
-      if (event === 'SIGNED_OUT') {
-        setSession(null);
-        setUser(null);
-        setTransactions([]);
-        setLoading(false);
-        return;
-      }
-
-      setSession(currentSession);
-      if (currentSession) {
-        await fetchProfile(currentSession.user.id);
-        setLoading(false);
-      }
-    });
-
-    return () => {
-      isMounted = false;
-      subscription.unsubscribe();
-    };
+    return () => subscription.unsubscribe();
   }, [fetchProfile, fetchInventory, fetchImpactMetrics]);
 
   const addFoodItem = async (item: any) => {
