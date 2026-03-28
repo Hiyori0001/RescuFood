@@ -5,7 +5,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { showError, showSuccess } from '@/utils/toast';
 import { Session } from '@supabase/supabase-js';
 
-export type UserRole = 'Admin' | 'Provider' | 'NGO' | 'Volunteer';
+export type UserRole = 'Admin' | 'Provider' | 'Donor' | 'NGO' | 'Volunteer';
 
 export interface UserProfile {
   id: string;

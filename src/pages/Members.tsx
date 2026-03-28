@@ -12,6 +12,7 @@ import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
+import RoleInfo from '@/components/RoleInfo';
 
 const Members = () => {
   const { user } = useApp();
@@ -57,7 +58,8 @@ const Members = () => {
 
   const roles: { id: UserRole; label: string; icon: any; color: string; bg: string }[] = [
     { id: 'Admin', label: 'Administrators', icon: ShieldCheck, color: 'text-emerald-600', bg: 'bg-emerald-50' },
-    { id: 'Provider', label: 'Food Providers', icon: Store, color: 'text-blue-600', bg: 'bg-blue-50' },
+    { id: 'Provider', label: 'Commercial Providers', icon: Store, color: 'text-blue-600', bg: 'bg-blue-50' },
+    { id: 'Donor', label: 'Individual Donors', icon: User, color: 'text-rose-600', bg: 'bg-rose-50' },
     { id: 'NGO', label: 'NGOs & Charities', icon: Building2, color: 'text-purple-600', bg: 'bg-purple-50' },
     { id: 'Volunteer', label: 'Volunteers', icon: HeartHandshake, color: 'text-amber-600', bg: 'bg-amber-50' },
   ];
@@ -122,9 +124,7 @@ const Members = () => {
                                 <p className="text-xs text-slate-500 mb-3 truncate">{member.bio || 'No bio provided'}</p>
                                 
                                 <div className="flex items-center justify-between gap-2 mt-4 pt-4 border-t border-slate-50">
-                                  <Badge variant="outline" className="text-[10px] font-bold uppercase tracking-wider border-slate-100">
-                                    {member.role}
-                                  </Badge>
+                                  <RoleInfo role={member.role} className="text-[10px] uppercase tracking-wider" />
                                   
                                   <Select 
                                     defaultValue={member.role} 
@@ -137,6 +137,7 @@ const Members = () => {
                                     <SelectContent>
                                       <SelectItem value="Admin">Admin</SelectItem>
                                       <SelectItem value="Provider">Provider</SelectItem>
+                                      <SelectItem value="Donor">Donor</SelectItem>
                                       <SelectItem value="NGO">NGO</SelectItem>
                                       <SelectItem value="Volunteer">Volunteer</SelectItem>
                                     </SelectContent>

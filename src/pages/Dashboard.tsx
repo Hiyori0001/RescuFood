@@ -8,18 +8,12 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Truck, CheckCircle2, Clock, MapPin, Star, User, XCircle, ArrowDownLeft, Info, Navigation } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import RoleInfo, { ROLE_DESCRIPTIONS } from '@/components/RoleInfo';
 
 const Dashboard = () => {
   const { user, transactions, updateTransactionStatus, claimDelivery } = useApp();
 
   if (!user) return <div className="p-20 text-center">Please login to view dashboard.</div>;
-
-  const roleInfo = {
-    Provider: "You are a Food Provider. Your role is to list surplus food, ensure its safety, and coordinate with NGOs or Volunteers for pickup.",
-    NGO: "You are an NGO/Charity. Your role is to identify community needs, request food allocations, and manage local distribution.",
-    Volunteer: "You are a Volunteer. Your role is to bridge the gap by providing logistics support, claiming deliveries, and ensuring food reaches its destination.",
-    Admin: "You are an Administrator. You have full oversight of the system, community members, and global impact metrics."
-  };
 
   const incomingRequests = transactions.filter(t => 
     (t.providerId === user.id || user.role === 'Admin') && t.status === 'Pending'
@@ -52,8 +46,7 @@ const Dashboard = () => {
           <div>
             <h1 className="text-3xl font-bold text-slate-900">Welcome, {user.name}</h1>
             <div className="flex items-center gap-2 mt-1">
-              <Badge className="bg-emerald-100 text-emerald-700 border-none">{user.role}</Badge>
-              <p className="text-xs text-slate-500 italic">"{roleInfo[user.role]}"</p>
+              <RoleInfo role={user.role} className="text-emerald-700 bg-emerald-50 px-3 py-1 rounded-full text-xs" />
             </div>
           </div>
           <div className="flex gap-4">
@@ -91,7 +84,7 @@ const Dashboard = () => {
                         </div>
                         <div>
                           <h3 className="font-bold text-slate-900">{t.itemName}</h3>
-                          <p className="text-sm text-slate-500">Requested by a Beneficiary</p>
+                          <p className="text-sm text-slate-500">Requested by an NGO</p>
                           <p className="text-xs text-slate-400 mt-1">Created: {new Date(t.createdAt).toLocaleString()}</p>
                         </div>
                       </div>

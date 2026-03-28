@@ -2,19 +2,20 @@
 
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useApp } from '@/context/AppContext';
+import { useApp, UserRole } from '@/context/AppContext';
 import { Auth as SupabaseAuth } from '@supabase/auth-ui-react';
 import { ThemeSupa } from '@supabase/auth-ui-shared';
 import { supabase } from '@/integrations/supabase/client';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Card } from '@/components/ui/card';
-import { UtensilsCrossed, Store, Building2, HeartHandshake, ArrowLeft, Info } from 'lucide-react';
+import { UtensilsCrossed, Store, Building2, HeartHandshake, ArrowLeft, Info, User } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { ROLE_DESCRIPTIONS } from '@/components/RoleInfo';
 
 const Auth = () => {
   const { session, loading, refreshProfile } = useApp();
   const navigate = useNavigate();
-  const [selectedRole, setSelectedRole] = useState<string | null>(null);
+  const [selectedRole, setSelectedRole] = useState<UserRole | null>(null);
 
   useEffect(() => {
     if (session) {
@@ -31,21 +32,27 @@ const Auth = () => {
     }
   }, [session, navigate, refreshProfile]);
 
-  const roles = [
+  const roles: { id: UserRole; label: string; desc: string; icon: any; color: string; bg: string }[] = [
     { 
       id: 'Provider', 
-      label: 'Food Provider', 
+      label: 'Commercial Provider', 
       desc: 'Restaurants, Hotels, Groceries', 
-      longDesc: 'List your surplus food, manage inventory, and track your environmental impact. Help reduce waste at the source.',
       icon: Store, 
       color: 'text-blue-600', 
       bg: 'bg-blue-50' 
     },
     { 
+      id: 'Donor', 
+      label: 'Individual Donor', 
+      desc: 'Donate surplus from home', 
+      icon: User, 
+      color: 'text-rose-600', 
+      bg: 'bg-rose-50' 
+    },
+    { 
       id: 'NGO', 
       label: 'NGO / Charity', 
       desc: 'Distribute food to those in need', 
-      longDesc: 'Browse available surplus, request allocations for your community, and coordinate with volunteers for delivery.',
       icon: Building2, 
       color: 'text-emerald-600', 
       bg: 'bg-emerald-50' 
@@ -54,7 +61,6 @@ const Auth = () => {
       id: 'Volunteer', 
       label: 'Volunteer', 
       desc: 'Help with logistics and delivery', 
-      longDesc: 'Be the bridge between providers and NGOs. Claim delivery tasks, navigate routes, and ensure food reaches its destination safely.',
       icon: HeartHandshake, 
       color: 'text-amber-600', 
       bg: 'bg-amber-50' 
@@ -93,7 +99,7 @@ const Auth = () => {
                     </div>
                   </div>
                   <p className="text-xs text-slate-400 leading-relaxed border-t border-slate-50 pt-3">
-                    {role.longDesc}
+                    {ROLE_DESCRIPTIONS[role.id].desc}
                   </p>
                 </button>
               ))}
@@ -107,7 +113,7 @@ const Auth = () => {
                 <div className="mb-6 p-4 bg-emerald-50 rounded-xl flex gap-3 items-start">
                   <Info className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
                   <p className="text-xs text-emerald-800 font-medium">
-                    You are signing up as a <b>{selectedRole}</b>. {roles.find(r => r.id === selectedRole)?.longDesc}
+                    You are signing up as a <b>{selectedRole}</b>. {ROLE_DESCRIPTIONS[selectedRole].desc}
                   </p>
                 </div>
                 <SupabaseAuth
