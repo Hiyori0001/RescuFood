@@ -178,7 +178,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (data) {
         setImpactMetrics({
           mealsSaved: data.meals_saved,
-          waste_reduced: data.waste_reduced,
+          wasteReduced: data.waste_reduced,
           communitiesServed: data.communities_served,
         });
       }
@@ -186,6 +186,48 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       console.error("[AppContext] Fetch impact metrics error:", e);
     }
   }, []);
+
+  // Dedicated effect to handle role assignment for new signups
+  useEffect(() => {
+    if (!session?.user.id) return;
+
+    const syncRole = async () => {
+      const pendingRole = localStorage.getItem('pending_role');
+      if (!pendingRole) return;
+
+      // Try to fetch the profile to see if it exists yet
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', session.user.id)
+        .maybeSingle();
+
+      if (profile) {
+        // If it exists and is still the default 'Beneficiary', update it
+        if (profile.role === 'Beneficiary' && pendingRole !== 'Beneficiary') {
+          const { error } = await supabase
+            .from('profiles')
+            .update({ role: pendingRole })
+            .eq('id', session.user.id);
+          
+          if (!error) {
+            localStorage.removeItem('pending_role');
+            showSuccess(`Account successfully set up as ${pendingRole}`);
+            fetchProfile(session.user.id);
+          }
+        } else {
+          // If it's already updated or the user actually chose Beneficiary, clear the flag
+          localStorage.removeItem('pending_role');
+          fetchProfile(session.user.id);
+        }
+      }
+    };
+
+    // Run immediately and then again after a short delay to catch the trigger
+    syncRole();
+    const timer = setTimeout(syncRole, 2000);
+    return () => clearTimeout(timer);
+  }, [session, fetchProfile]);
 
   useEffect(() => {
     let isMounted = true;
@@ -229,42 +271,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, currentSession) => {
       if (!isMounted) return;
-      
       setSession(currentSession);
       
       if (currentSession) {
-        // Handle role assignment for new signups with a retry mechanism
-        const pendingRole = localStorage.getItem('pending_role');
-        if (pendingRole) {
-          // Wait a moment for the database trigger to finish creating the profile
-          setTimeout(async () => {
-            const { data: profile } = await supabase
-              .from('profiles')
-              .select('role')
-              .eq('id', currentSession.user.id)
-              .maybeSingle();
-            
-            // Only update if the role is currently the default 'Beneficiary'
-            if (profile && profile.role === 'Beneficiary') {
-              const { error } = await supabase
-                .from('profiles')
-                .update({ role: pendingRole })
-                .eq('id', currentSession.user.id);
-              
-              if (!error) {
-                localStorage.removeItem('pending_role');
-                showSuccess(`Welcome! Your account is set up as a ${pendingRole}.`);
-              }
-            } else if (profile) {
-              // If it's already something else (like Admin), just clear the pending role
-              localStorage.removeItem('pending_role');
-            }
-            
-            fetchProfile(currentSession.user.id);
-          }, 1500); // 1.5 second delay to ensure trigger completion
-        } else {
-          await fetchProfile(currentSession.user.id);
-        }
+        fetchProfile(currentSession.user.id);
       } else {
         setUser(null);
         setTransactions([]);
