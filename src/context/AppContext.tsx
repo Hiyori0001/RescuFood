@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { showError, showSuccess } from '@/utils/toast';
 import { Session } from '@supabase/supabase-js';
@@ -74,9 +74,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [loading, setLoading] = useState(true);
   const [impactMetrics, setImpactMetrics] = useState({
     mealsSaved: 0,
-    wasteReduced: 0,
-    communitiesServed: 0,
+    waste_reduced: 0,
+    communities_served: 0,
   });
+  
+  const syncAttempts = useRef(0);
 
   const fetchTransactions = useCallback(async (userId: string, role?: UserRole) => {
     try {
@@ -172,7 +174,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, []);
 
-  const fetchImpactMetrics = useCallback(async (userId?: string) => {
+  const fetchImpactMetrics = useCallback(async () => {
     try {
       const { data } = await supabase.from('impact_metrics').select('*').maybeSingle();
       if (data) {
@@ -195,38 +197,41 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const pendingRole = localStorage.getItem('pending_role');
       if (!pendingRole) return;
 
-      // Try to fetch the profile to see if it exists yet
-      const { data: profile } = await supabase
+      // Try to fetch the profile
+      const { data: profile, error: fetchError } = await supabase
         .from('profiles')
         .select('role')
         .eq('id', session.user.id)
         .maybeSingle();
 
+      if (fetchError) return;
+
       if (profile) {
-        // If it exists and is still the default 'Beneficiary', update it
-        if (profile.role === 'Beneficiary' && pendingRole !== 'Beneficiary') {
-          const { error } = await supabase
+        // If it exists and isn't what we want, update it
+        if (profile.role !== pendingRole) {
+          const { error: updateError } = await supabase
             .from('profiles')
             .update({ role: pendingRole })
             .eq('id', session.user.id);
           
-          if (!error) {
+          if (!updateError) {
             localStorage.removeItem('pending_role');
             showSuccess(`Account successfully set up as ${pendingRole}`);
             fetchProfile(session.user.id);
           }
         } else {
-          // If it's already updated or the user actually chose Beneficiary, clear the flag
+          // Already correct
           localStorage.removeItem('pending_role');
           fetchProfile(session.user.id);
         }
+      } else if (syncAttempts.current < 10) {
+        // Profile doesn't exist yet, retry in a bit
+        syncAttempts.current++;
+        setTimeout(syncRole, 1000);
       }
     };
 
-    // Run immediately and then again after a short delay to catch the trigger
     syncRole();
-    const timer = setTimeout(syncRole, 2000);
-    return () => clearTimeout(timer);
   }, [session, fetchProfile]);
 
   useEffect(() => {
