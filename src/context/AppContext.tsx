@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { showError, showSuccess } from '@/utils/toast';
 import { Session } from '@supabase/supabase-js';
@@ -84,8 +84,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     wasteReduced: 0,
     communitiesServed: 0,
   });
-  
-  const syncAttempts = useRef(0);
 
   const fetchTransactions = useCallback(async (userId: string, role?: UserRole) => {
     try {
@@ -207,46 +205,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, []);
 
   useEffect(() => {
-    if (!session?.user.id) return;
-
-    const syncRole = async () => {
-      const pendingRole = localStorage.getItem('pending_role');
-      if (!pendingRole) return;
-
-      const { data: profile, error: fetchError } = await supabase
-        .from('profiles')
-        .select('role')
-        .eq('id', session.user.id)
-        .maybeSingle();
-
-      if (fetchError) return;
-
-      if (profile) {
-        if (profile.role !== pendingRole) {
-          const { error: updateError } = await supabase
-            .from('profiles')
-            .update({ role: pendingRole })
-            .eq('id', session.user.id);
-          
-          if (!updateError) {
-            localStorage.removeItem('pending_role');
-            showSuccess(`Account successfully set up as ${pendingRole}`);
-            await fetchProfile(session.user.id);
-          }
-        } else {
-          localStorage.removeItem('pending_role');
-          await fetchProfile(session.user.id);
-        }
-      } else if (syncAttempts.current < 10) {
-        syncAttempts.current++;
-        setTimeout(syncRole, 1000);
-      }
-    };
-
-    syncRole();
-  }, [session, fetchProfile]);
-
-  useEffect(() => {
     let isMounted = true;
 
     const initializeAuth = async () => {
@@ -255,11 +213,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (!isMounted) return;
 
         setSession(initialSession);
-        setLoading(false);
-
         if (initialSession) {
           await fetchProfile(initialSession.user.id);
         }
+        setLoading(false);
       } catch (error) {
         console.error("[AppContext] Auth initialization error:", error);
         if (isMounted) setLoading(false);
@@ -269,22 +226,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     initializeAuth();
     fetchInventory();
     fetchImpactMetrics();
-
-    const inventoryChannel = supabase
-      .channel('inventory-changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'inventory' }, () => {
-        fetchInventory();
-      })
-      .subscribe();
-
-    const transactionsChannel = supabase
-      .channel('transaction-changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'transactions' }, () => {
-        if (session?.user.id) {
-          fetchTransactions(session.user.id, user?.role);
-        }
-      })
-      .subscribe();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, currentSession) => {
       if (!isMounted) return;
@@ -301,10 +242,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return () => {
       isMounted = false;
       subscription.unsubscribe();
-      supabase.removeChannel(inventoryChannel);
-      supabase.removeChannel(transactionsChannel);
     };
-  }, [fetchProfile, fetchInventory, fetchImpactMetrics, session?.user.id, user?.role, fetchTransactions]);
+  }, [fetchProfile, fetchInventory, fetchImpactMetrics]);
 
   const addFoodItem = async (item: any) => {
     if (!session?.user) return;
@@ -321,7 +260,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       provider_name: user?.name || 'Anonymous',
       status: 'Available',
       distance: Math.floor(Math.random() * 10) + 1,
-      is_safety_verified: item.isSafetyVerified || false
+      is_safety_verified: item.is_safety_verified || false
     }]);
 
     if (error) {

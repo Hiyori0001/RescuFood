@@ -19,20 +19,6 @@ const Navbar = () => {
     { path: '/members', label: 'Members', icon: Users, roles: ['Admin'] },
   ];
 
-  // If loading and no user, show minimal navbar
-  if (loading && !user) {
-    return (
-      <nav className="fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-emerald-100 px-4 py-2 md:top-0 md:bottom-auto md:border-b md:border-t-0">
-        <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-2 text-emerald-600 font-bold text-xl">
-            <UtensilsCrossed className="w-6 h-6" />
-            <span>RescuFood</span>
-          </div>
-        </div>
-      </nav>
-    );
-  }
-
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-emerald-100 px-4 py-2 md:top-0 md:bottom-auto md:border-b md:border-t-0">
       <div className="max-w-7xl mx-auto flex items-center justify-between">
@@ -59,7 +45,7 @@ const Navbar = () => {
           ))}
           
           {!user ? (
-            <Link to="/auth" className="flex flex-col md:flex-row items-center gap-1 md:gap-2 p-2 text-slate-500">
+            <Link to="/auth" className="flex flex-col md:flex-row items-center gap-1 md:gap-2 p-2 text-slate-500 hover:text-emerald-600 transition-colors">
               <UserCircle className="w-5 h-5" />
               <span className="text-[10px] md:text-sm font-medium">Login</span>
             </Link>
