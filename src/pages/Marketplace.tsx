@@ -6,7 +6,7 @@ import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { MapPin, Navigation, Info } from 'lucide-react';
+import { MapPin, Navigation, Info, AlertCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const Marketplace = () => {
@@ -17,6 +17,8 @@ const Marketplace = () => {
     item.status === 'Available' && 
     (filter === 'All' || (filter === 'Donated' ? item.pricing === 'Donated' : item.pricing !== 'Donated'))
   );
+
+  const isVolunteer = user?.role === 'Volunteer';
 
   return (
     <div className="min-h-screen bg-slate-50 p-6 pb-24 md:pt-24">
@@ -42,6 +44,13 @@ const Marketplace = () => {
           </div>
         </div>
 
+        {isVolunteer && (
+          <div className="mb-8 p-4 bg-amber-50 border border-amber-100 rounded-2xl flex items-center gap-3 text-amber-800">
+            <AlertCircle className="w-5 h-5 shrink-0" />
+            <p className="text-sm font-medium">As a Volunteer, you can view available food but cannot request allocations. Check the Dashboard for delivery tasks!</p>
+          </div>
+        )}
+
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {availableItems.length === 0 ? (
             <div className="col-span-full text-center py-20 bg-white rounded-3xl border border-slate-100">
@@ -49,12 +58,7 @@ const Marketplace = () => {
             </div>
           ) : (
             availableItems.map((item) => (
-              <motion.div
-                key={item.id}
-                layout
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-              >
+              <motion.div key={item.id} layout initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }}>
                 <Card className="border-none shadow-sm rounded-3xl overflow-hidden hover:shadow-md transition-shadow h-full flex flex-col">
                   <div className="h-32 bg-emerald-50 flex items-center justify-center relative">
                     <Badge className="absolute top-4 right-4 bg-white text-emerald-700 border-none shadow-sm">
@@ -91,10 +95,10 @@ const Marketplace = () => {
 
                     <Button 
                       onClick={() => requestFood(item)}
-                      disabled={!user || user.id === item.providerId}
+                      disabled={!user || user.id === item.providerId || isVolunteer}
                       className="w-full bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl py-6 font-bold"
                     >
-                      {user?.id === item.providerId ? 'Your Listing' : 'Request Allocation'}
+                      {user?.id === item.providerId ? 'Your Listing' : isVolunteer ? 'Volunteers Cannot Request' : 'Request Allocation'}
                     </Button>
                   </CardContent>
                 </Card>
