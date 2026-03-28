@@ -13,36 +13,50 @@ import { cn } from '@/lib/utils';
 import RoleInfo, { ROLE_DESCRIPTIONS } from '@/components/RoleInfo';
 
 const Auth = () => {
-  const { session, loading, refreshProfile } = useApp();
+  const { session, loading, refreshProfile, user } = useApp();
   const navigate = useNavigate();
   const [selectedRole, setSelectedRole] = useState<UserRole | null>(null);
+  const [isProcessing, setIsProcessing] = useState(false);
 
   useEffect(() => {
-    if (session) {
+    if (session && !isProcessing) {
       const finalizeAuth = async () => {
-        // Check if user already has a role in the database
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('role')
-          .eq('id', session.user.id)
-          .maybeSingle();
+        setIsProcessing(true);
+        try {
+          // Check if user already has a role in the database
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('role')
+            .eq('id', session.user.id)
+            .maybeSingle();
 
-        const pendingRole = localStorage.getItem('pending_role');
-        
-        // ONLY update the role if the user doesn't have one yet
-        if (pendingRole && (!profile || !profile.role)) {
-          await supabase.from('profiles').update({ role: pendingRole }).eq('id', session.user.id);
+          const pendingRole = localStorage.getItem('pending_role');
+          
+          // ONLY update the role if the user doesn't have one yet
+          if (pendingRole && (!profile || !profile.role)) {
+            await supabase.from('profiles').update({ role: pendingRole }).eq('id', session.user.id);
+          }
+          
+          localStorage.removeItem('pending_role');
+          await refreshProfile();
+          navigate('/dashboard');
+        } catch (error) {
+          console.error("Auth finalization error:", error);
+        } finally {
+          setIsProcessing(false);
         }
-        
-        localStorage.removeItem('pending_role');
-        await refreshProfile();
-        navigate('/dashboard');
       };
       finalizeAuth();
     }
-  }, [session, navigate, refreshProfile]);
+  }, [session, navigate, refreshProfile, isProcessing]);
 
-  // Removed Admin from this list so it's not an option during signup
+  // If user is already logged in and has a role, just send them to dashboard
+  useEffect(() => {
+    if (user && session) {
+      navigate('/dashboard');
+    }
+  }, [user, session, navigate]);
+
   const roles: { id: UserRole; label: string; desc: string; icon: any; color: string; bg: string }[] = [
     { 
       id: 'Provider', 
@@ -94,6 +108,9 @@ const Auth = () => {
         <AnimatePresence mode="wait">
           {!selectedRole ? (
             <motion.div key="role-selection" initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} className="grid gap-4">
+              <div className="mb-2 text-center">
+                <p className="text-sm font-medium text-slate-600">Choose your role to get started</p>
+              </div>
               {roles.map((role) => (
                 <button
                   key={role.id}
@@ -120,6 +137,9 @@ const Auth = () => {
                   </p>
                 </button>
               ))}
+              <div className="mt-4 text-center">
+                <p className="text-xs text-slate-400">Already have an account? Select any role to sign in.</p>
+              </div>
             </motion.div>
           ) : (
             <motion.div key="auth-form" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}>
