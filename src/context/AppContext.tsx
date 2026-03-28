@@ -221,30 +221,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
       if (fetchError) return;
 
-      if (profile) {
-        // SPECIAL CASE: If the user is already an Admin (e.g. first user trigger), 
-        // do NOT overwrite it with whatever they selected in the UI.
-        if (profile.role === 'Admin') {
-          localStorage.removeItem('pending_role');
-          await fetchProfile(session.user.id);
-          return;
-        }
+      // If the user already has a role (like Admin from trigger), DO NOT overwrite it
+      if (profile && profile.role) {
+        localStorage.removeItem('pending_role');
+        await fetchProfile(session.user.id);
+        return;
+      }
 
-        if (profile.role !== pendingRole) {
-          const { error: updateError } = await supabase
-            .from('profiles')
-            .update({ role: pendingRole })
-            .eq('id', session.user.id);
-          
-          if (!updateError) {
-            localStorage.removeItem('pending_role');
-            showSuccess(`Account successfully set up as ${pendingRole}`);
-            await fetchProfile(session.user.id);
-          }
-        } else {
-          localStorage.removeItem('pending_role');
-          await fetchProfile(session.user.id);
-        }
+      // Only update if they don't have a role yet
+      const { error: updateError } = await supabase
+        .from('profiles')
+        .update({ role: pendingRole })
+        .eq('id', session.user.id);
+      
+      if (!updateError) {
+        localStorage.removeItem('pending_role');
+        await fetchProfile(session.user.id);
       } else if (syncAttempts.current < 10) {
         syncAttempts.current++;
         setTimeout(syncRole, 1000);

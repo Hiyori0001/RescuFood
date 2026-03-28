@@ -8,7 +8,7 @@ import { ThemeSupa } from '@supabase/auth-ui-shared';
 import { supabase } from '@/integrations/supabase/client';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Card } from '@/components/ui/card';
-import { UtensilsCrossed, Store, Building2, HeartHandshake, ArrowLeft, Info, User, ShieldCheck } from 'lucide-react';
+import { UtensilsCrossed, Store, Building2, HeartHandshake, ArrowLeft, Info, User } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import RoleInfo, { ROLE_DESCRIPTIONS } from '@/components/RoleInfo';
 
@@ -20,11 +20,21 @@ const Auth = () => {
   useEffect(() => {
     if (session) {
       const finalizeAuth = async () => {
+        // Check if user already has a role in the database
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('role')
+          .eq('id', session.user.id)
+          .maybeSingle();
+
         const pendingRole = localStorage.getItem('pending_role');
-        if (pendingRole) {
+        
+        // ONLY update the role if the user doesn't have one yet
+        if (pendingRole && (!profile || !profile.role)) {
           await supabase.from('profiles').update({ role: pendingRole }).eq('id', session.user.id);
-          localStorage.removeItem('pending_role');
         }
+        
+        localStorage.removeItem('pending_role');
         await refreshProfile();
         navigate('/dashboard');
       };
@@ -32,15 +42,8 @@ const Auth = () => {
     }
   }, [session, navigate, refreshProfile]);
 
+  // Removed Admin from this list so it's not an option during signup
   const roles: { id: UserRole; label: string; desc: string; icon: any; color: string; bg: string }[] = [
-    { 
-      id: 'Admin', 
-      label: 'System Administrator', 
-      desc: 'Full platform oversight and management', 
-      icon: ShieldCheck, 
-      color: 'text-slate-900', 
-      bg: 'bg-slate-100' 
-    },
     { 
       id: 'Provider', 
       label: 'Commercial Provider', 
