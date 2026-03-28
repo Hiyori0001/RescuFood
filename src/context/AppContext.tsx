@@ -12,6 +12,8 @@ export interface UserProfile {
   name: string;
   role: UserRole;
   location?: string;
+  bio?: string;
+  avatar_url?: string;
 }
 
 export interface FoodItem {
@@ -64,6 +66,7 @@ interface AppContextType extends AppState {
   claimDelivery: (transactionId: string) => Promise<void>;
   updateTransactionStatus: (transactionId: string, itemId: string, newStatus: string) => Promise<void>;
   updateLocation: (location: string) => Promise<void>;
+  updateProfile: (updates: { full_name?: string; bio?: string; avatar_url?: string }) => Promise<void>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
 }
@@ -144,7 +147,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           id: data.id,
           name: data.full_name || 'User',
           role: data.role as UserRole,
-          location: data.location
+          location: data.location,
+          bio: data.bio,
+          avatar_url: data.avatar_url
         };
         setUser(profile);
         fetchTransactions(userId, profile.role);
@@ -402,6 +407,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
+  const updateProfile = async (updates: { full_name?: string; bio?: string; avatar_url?: string }) => {
+    if (!session?.user) return;
+    const { error } = await supabase.from('profiles').update(updates).eq('id', session.user.id);
+    if (error) showError('Failed to update profile');
+    else {
+      showSuccess('Profile updated!');
+      fetchProfile(session.user.id);
+    }
+  };
+
   const signOut = async () => {
     try {
       setUser(null);
@@ -422,7 +437,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   return (
     <AppContext.Provider value={{ 
       user, session, inventory, transactions, impactMetrics, loading,
-      addFoodItem, requestFood, claimDelivery, updateTransactionStatus, updateLocation, signOut, refreshProfile
+      addFoodItem, requestFood, claimDelivery, updateTransactionStatus, updateLocation, updateProfile, signOut, refreshProfile
     }}>
       {children}
     </AppContext.Provider>

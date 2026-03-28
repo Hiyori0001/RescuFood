@@ -6,7 +6,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { Users, UserCog, ArrowLeft, ShieldCheck, Store, Building2, HeartHandshake, User } from 'lucide-react';
+import { Users, UserCog, ArrowLeft, ShieldCheck, Store, Building2, HeartHandshake, User } from 'lucide-center';
 import { showSuccess, showError } from '@/utils/toast';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -59,7 +59,7 @@ const Members = () => {
   const roles: { id: UserRole; label: string; icon: any; color: string; bg: string }[] = [
     { id: 'Admin', label: 'Administrators', icon: ShieldCheck, color: 'text-emerald-600', bg: 'bg-emerald-50' },
     { id: 'Provider', label: 'Commercial Providers', icon: Store, color: 'text-blue-600', bg: 'bg-blue-50' },
-    { id: 'Donor', label: 'Individual Donors', icon: User, color: 'text-rose-600', bg: 'bg-rose-50' },
+    { id: 'Donor', label: 'Donors', icon: User, color: 'text-rose-600', bg: 'bg-rose-50' },
     { id: 'NGO', label: 'NGOs & Charities', icon: Building2, color: 'text-purple-600', bg: 'bg-purple-50' },
     { id: 'Volunteer', label: 'Volunteers', icon: HeartHandshake, color: 'text-amber-600', bg: 'bg-amber-50' },
   ];
