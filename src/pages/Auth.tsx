@@ -8,9 +8,8 @@ import { ThemeSupa } from '@supabase/auth-ui-shared';
 import { supabase } from '@/integrations/supabase/client';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Card } from '@/components/ui/card';
-import { UtensilsCrossed, Store, Building2, HeartHandshake, User, ArrowLeft } from 'lucide-react';
+import { UtensilsCrossed, Store, Building2, HeartHandshake, ArrowLeft } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { showSuccess } from '@/utils/toast';
 
 const Auth = () => {
   const { session, loading, refreshProfile } = useApp();
@@ -32,8 +31,9 @@ const Auth = () => {
               .maybeSingle();
 
             if (profile) {
-              // Profile exists, update the role if it's not already set correctly
-              if (profile.role !== pendingRole) {
+              // ONLY update if the role is currently 'Volunteer' (the default)
+              // This prevents overwriting existing roles like Admin during login.
+              if (profile.role === 'Volunteer' && pendingRole !== 'Volunteer') {
                 await supabase
                   .from('profiles')
                   .update({ role: pendingRole })
@@ -63,7 +63,6 @@ const Auth = () => {
   const roles = [
     { id: 'Provider', label: 'Food Provider', desc: 'Restaurants, Hotels, Groceries', icon: Store, color: 'text-blue-600', bg: 'bg-blue-50' },
     { id: 'NGO', label: 'NGO / Charity', desc: 'Distribute food to those in need', icon: Building2, color: 'text-emerald-600', bg: 'bg-emerald-50' },
-    { id: 'Beneficiary', label: 'Individual', desc: 'Looking for food assistance', icon: User, color: 'text-rose-600', bg: 'bg-rose-50' },
     { id: 'Volunteer', label: 'Volunteer', desc: 'Help with logistics and delivery', icon: HeartHandshake, color: 'text-amber-600', bg: 'bg-amber-50' },
   ];
 

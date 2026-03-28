@@ -106,7 +106,6 @@ const AdminPanel = () => {
                             <SelectItem value="Admin">Admin</SelectItem>
                             <SelectItem value="Provider">Provider</SelectItem>
                             <SelectItem value="NGO">NGO</SelectItem>
-                            <SelectItem value="Beneficiary">Beneficiary</SelectItem>
                             <SelectItem value="Volunteer">Volunteer</SelectItem>
                           </SelectContent>
                         </Select>

@@ -5,7 +5,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { motion } from 'framer-motion';
 import { Card, CardContent } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Users, Search, Loader2, ShieldCheck, Store, Building2, HeartHandshake, User } from 'lucide-react';
+import { Users, Search, Loader2, ShieldCheck, Store, Building2, HeartHandshake } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
@@ -15,10 +15,9 @@ const roleConfig: Record<string, { icon: any, color: string, bg: string }> = {
   'Provider': { icon: Store, color: 'text-blue-600', bg: 'bg-blue-50' },
   'NGO': { icon: Building2, color: 'text-purple-600', bg: 'bg-purple-50' },
   'Volunteer': { icon: HeartHandshake, color: 'text-amber-600', bg: 'bg-amber-50' },
-  'Beneficiary': { icon: User, color: 'text-rose-600', bg: 'bg-rose-50' },
 };
 
-const roleOrder = ['Admin', 'Provider', 'NGO', 'Volunteer', 'Beneficiary'];
+const roleOrder = ['Admin', 'Provider', 'NGO', 'Volunteer'];
 
 const Members = () => {
   const [members, setMembers] = useState<any[]>([]);
@@ -87,7 +86,7 @@ const Members = () => {
 
         <div className="space-y-12">
           {groupedMembers.map(({ role, members: roleMembers }, sectionIdx) => {
-            const config = roleConfig[role] || roleConfig['Beneficiary'];
+            const config = roleConfig[role] || roleConfig['Volunteer'];
             const Icon = config.icon;
 
             return (

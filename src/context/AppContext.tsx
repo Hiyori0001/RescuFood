@@ -5,7 +5,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { showError, showSuccess } from '@/utils/toast';
 import { Session } from '@supabase/supabase-js';
 
-export type UserRole = 'Admin' | 'Provider' | 'NGO' | 'Beneficiary' | 'Volunteer';
+export type UserRole = 'Admin' | 'Provider' | 'NGO' | 'Volunteer';
 
 export interface UserProfile {
   id: string;
@@ -207,8 +207,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (fetchError) return;
 
       if (profile) {
-        // If it exists and isn't what we want, update it
-        if (profile.role !== pendingRole) {
+        // ONLY update if the role is currently 'Volunteer' (the default) 
+        // and we have a different pending role. This prevents overwriting 
+        // existing roles like Admin during login.
+        if (profile.role === 'Volunteer' && pendingRole !== 'Volunteer') {
           const { error: updateError } = await supabase
             .from('profiles')
             .update({ role: pendingRole })
@@ -220,7 +222,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             fetchProfile(session.user.id);
           }
         } else {
-          // Already correct
+          // Already set or shouldn't be overwritten
           localStorage.removeItem('pending_role');
           fetchProfile(session.user.id);
         }
