@@ -3,7 +3,6 @@
 import React, { useEffect, useState } from 'react';
 import { useApp, UserRole } from '@/context/AppContext';
 import { supabase } from '@/integrations/supabase/client';
-import { motion } from 'framer-motion';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -14,7 +13,6 @@ import { showSuccess, showError } from '@/utils/toast';
 const AdminPanel = () => {
   const { user } = useApp();
   const [users, setUsers] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     fetchUsers();
@@ -31,7 +29,6 @@ const AdminPanel = () => {
     } else {
       setUsers(data || []);
     }
-    setLoading(false);
   };
 
   const updateRole = async (userId: string, newRole: UserRole) => {
@@ -97,7 +94,7 @@ const AdminPanel = () => {
                         <Select 
                           defaultValue={u.role} 
                           onValueChange={(val: UserRole) => updateRole(u.id, val)}
-                          disabled={u.id === user.id} // Can't demote yourself
+                          disabled={u.id === user.id}
                         >
                           <SelectTrigger className="w-[140px] h-8 text-xs rounded-lg">
                             <SelectValue />
@@ -106,7 +103,6 @@ const AdminPanel = () => {
                             <SelectItem value="Admin">Admin</SelectItem>
                             <SelectItem value="Provider">Provider</SelectItem>
                             <SelectItem value="NGO">NGO</SelectItem>
-                            <SelectItem value="Beneficiary">Beneficiary</SelectItem>
                             <SelectItem value="Volunteer">Volunteer</SelectItem>
                           </SelectContent>
                         </Select>
