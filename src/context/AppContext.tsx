@@ -89,7 +89,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
       if (role !== 'Admin') {
         if (role === 'Volunteer') {
-          // Volunteers see 'Approved' tasks (to claim) and their own active deliveries
           query = query.or(`status.eq.Approved,volunteer_id.eq.${userId},status.eq.In Transit`);
         } else {
           query = query.or(`provider_id.eq.${userId},beneficiary_id.eq.${userId}`);
@@ -234,7 +233,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setSession(currentSession);
       
       if (currentSession) {
-        fetchProfile(currentSession.user.id);
+        const profile = await fetchProfile(currentSession.user.id);
+        
+        // Handle role assignment for new signups
+        const pendingRole = localStorage.getItem('pending_role');
+        if (pendingRole && profile && profile.role === 'Beneficiary') {
+          // Only update if the role is currently the default 'Beneficiary'
+          // and we have a specific role the user selected during signup
+          const { error } = await supabase
+            .from('profiles')
+            .update({ role: pendingRole })
+            .eq('id', currentSession.user.id);
+          
+          if (!error) {
+            localStorage.removeItem('pending_role');
+            fetchProfile(currentSession.user.id); // Refresh profile with new role
+          }
+        }
       } else {
         setUser(null);
         setTransactions([]);
