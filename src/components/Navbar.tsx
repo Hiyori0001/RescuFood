@@ -15,7 +15,8 @@ const Navbar = () => {
     { path: '/marketplace', label: 'Marketplace', icon: ShoppingBasket, roles: ['Admin', 'Provider', 'NGO', 'Volunteer'] },
     { path: '/inventory', label: 'Inventory', icon: UtensilsCrossed, roles: ['Admin', 'Provider', 'NGO'] },
     { path: '/impact', label: 'Impact', icon: BarChart3, roles: ['Admin', 'Provider', 'NGO', 'Volunteer'] },
-    { path: '/admin', label: 'Members', icon: Users, roles: ['Admin'] },
+    { path: '/admin', label: 'Admin', icon: ShieldCheck, roles: ['Admin'] },
+    { path: '/members', label: 'Members', icon: Users, roles: ['Admin'] },
   ];
 
   return (
