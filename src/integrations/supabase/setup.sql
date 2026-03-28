@@ -1,22 +1,34 @@
--- Add volunteer_id to transactions table
-ALTER TABLE public.transactions ADD COLUMN IF NOT EXISTS volunteer_id UUID REFERENCES auth.users(id);
+-- Remove the default 'Volunteer' role from the profiles table
+ALTER TABLE public.profiles ALTER COLUMN role DROP DEFAULT;
 
--- Update RLS policies for transactions to include volunteers and broader visibility for Admins
-DROP POLICY IF EXISTS "Users can see their own transactions" ON public.transactions;
-CREATE POLICY "Users can see their own transactions" ON public.transactions
-FOR SELECT TO authenticated 
-USING (
-  (auth.uid() = provider_id) OR 
-  (auth.uid() = beneficiary_id) OR 
-  (auth.uid() = volunteer_id) OR
-  (status = 'Approved') -- Allow volunteers to see approved tasks to claim them
-);
+-- Update the handle_new_user function to remove the default role assignment
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+DECLARE
+  is_first_user BOOLEAN;
+  assigned_role TEXT;
+BEGIN
+  -- Check if this is the very first user in the system
+  SELECT NOT EXISTS (SELECT 1 FROM public.profiles) INTO is_first_user;
+  
+  -- Get role from metadata (will be NULL if not provided)
+  assigned_role := new.raw_user_meta_data ->> 'role';
+  
+  -- Force Admin role for the first user regardless of choice
+  IF is_first_user THEN
+    assigned_role := 'Admin';
+  END IF;
 
-DROP POLICY IF EXISTS "Involved parties can update transactions" ON public.transactions;
-CREATE POLICY "Involved parties can update transactions" ON public.transactions
-FOR UPDATE TO authenticated 
-USING (
-  (auth.uid() = provider_id) OR 
-  (auth.uid() = beneficiary_id) OR 
-  (auth.uid() = volunteer_id)
-);
+  INSERT INTO public.profiles (id, full_name, role)
+  VALUES (
+    new.id,
+    new.raw_user_meta_data ->> 'full_name',
+    assigned_role
+  );
+  RETURN new;
+END;
+$function$;
