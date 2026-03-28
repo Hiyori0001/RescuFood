@@ -3,7 +3,7 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useApp } from '@/context/AppContext';
-import { UtensilsCrossed, LayoutDashboard, ShoppingBasket, BarChart3, UserCircle, ShieldCheck, LogOut } from 'lucide-react';
+import { UtensilsCrossed, LayoutDashboard, ShoppingBasket, BarChart3, UserCircle, ShieldCheck, LogOut, Users } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const Navbar = () => {
@@ -15,7 +15,7 @@ const Navbar = () => {
     { path: '/marketplace', label: 'Marketplace', icon: ShoppingBasket, roles: ['Admin', 'Provider', 'NGO', 'Volunteer'] },
     { path: '/inventory', label: 'Inventory', icon: UtensilsCrossed, roles: ['Admin', 'Provider', 'NGO'] },
     { path: '/impact', label: 'Impact', icon: BarChart3, roles: ['Admin', 'Provider', 'NGO', 'Volunteer'] },
-    { path: '/admin', label: 'Admin', icon: ShieldCheck, roles: ['Admin'] },
+    { path: '/admin', label: 'Members', icon: Users, roles: ['Admin'] },
   ];
 
   return (
