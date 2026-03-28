@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useApp } from '@/context/AppContext';
 import { motion } from 'framer-motion';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from '@/components/ui/dialog';
 import { Truck, CheckCircle2, Clock, MapPin, Star, User, XCircle, ArrowDownLeft, Info, Navigation, Save, Settings, ExternalLink } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import RoleInfo from '@/components/RoleInfo';
@@ -17,12 +17,26 @@ const Dashboard = () => {
   const { user, transactions, updateTransactionStatus, claimDelivery, updateLocation, updateProfile } = useApp();
   const [newLocation, setNewLocation] = useState(user?.location || '');
   const [isEditingLocation, setIsEditingLocation] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
   
   const [profileForm, setProfileForm] = useState({
     full_name: user?.name || '',
     bio: user?.bio || '',
     avatar_url: user?.avatar_url || ''
   });
+
+  // Sync form state when user data changes
+  useEffect(() => {
+    if (user) {
+      setProfileForm({
+        full_name: user.name || '',
+        bio: user.bio || '',
+        avatar_url: user.avatar_url || ''
+      });
+      setNewLocation(user.location || '');
+    }
+  }, [user]);
 
   if (!user) return <div className="p-20 text-center">Please login to view dashboard.</div>;
 
@@ -62,7 +76,13 @@ const Dashboard = () => {
   };
 
   const handleUpdateProfile = async () => {
-    await updateProfile(profileForm);
+    setIsSaving(true);
+    try {
+      await updateProfile(profileForm);
+      setIsDialogOpen(false);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -80,7 +100,7 @@ const Dashboard = () => {
             <div className="flex-1">
               <div className="flex items-center gap-3">
                 <h1 className="text-3xl font-bold text-slate-900">{user.name}</h1>
-                <Dialog>
+                <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
                   <DialogTrigger asChild>
                     <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full hover:bg-emerald-50 text-slate-400 hover:text-emerald-600">
                       <Settings className="w-4 h-4" />
@@ -89,6 +109,7 @@ const Dashboard = () => {
                   <DialogContent className="sm:max-w-[425px] rounded-3xl border-none shadow-2xl">
                     <DialogHeader>
                       <DialogTitle className="text-2xl font-bold">Profile Settings</DialogTitle>
+                      <DialogDescription>Update your public profile information here.</DialogDescription>
                     </DialogHeader>
                     <div className="grid gap-6 py-4">
                       <div className="space-y-2">
@@ -117,8 +138,12 @@ const Dashboard = () => {
                           placeholder="https://example.com/avatar.jpg"
                         />
                       </div>
-                      <Button onClick={handleUpdateProfile} className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl py-6 font-bold">
-                        Save Changes
+                      <Button 
+                        onClick={handleUpdateProfile} 
+                        disabled={isSaving}
+                        className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl py-6 font-bold"
+                      >
+                        {isSaving ? 'Saving...' : 'Save Changes'}
                       </Button>
                     </div>
                   </DialogContent>
