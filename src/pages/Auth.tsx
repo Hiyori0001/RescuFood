@@ -8,7 +8,7 @@ import { ThemeSupa } from '@supabase/auth-ui-shared';
 import { supabase } from '@/integrations/supabase/client';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Card } from '@/components/ui/card';
-import { UtensilsCrossed, Store, Building2, HeartHandshake, ArrowLeft, Info, User } from 'lucide-react';
+import { UtensilsCrossed, Store, Building2, HeartHandshake, ArrowLeft, Info, User, ShieldCheck } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import RoleInfo, { ROLE_DESCRIPTIONS } from '@/components/RoleInfo';
 
@@ -33,6 +33,14 @@ const Auth = () => {
   }, [session, navigate, refreshProfile]);
 
   const roles: { id: UserRole; label: string; desc: string; icon: any; color: string; bg: string }[] = [
+    { 
+      id: 'Admin', 
+      label: 'System Administrator', 
+      desc: 'Full platform oversight and management', 
+      icon: ShieldCheck, 
+      color: 'text-slate-900', 
+      bg: 'bg-slate-100' 
+    },
     { 
       id: 'Provider', 
       label: 'Commercial Provider', 

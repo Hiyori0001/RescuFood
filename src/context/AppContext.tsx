@@ -222,6 +222,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (fetchError) return;
 
       if (profile) {
+        // SPECIAL CASE: If the user is already an Admin (e.g. first user trigger), 
+        // do NOT overwrite it with whatever they selected in the UI.
+        if (profile.role === 'Admin') {
+          localStorage.removeItem('pending_role');
+          await fetchProfile(session.user.id);
+          return;
+        }
+
         if (profile.role !== pendingRole) {
           const { error: updateError } = await supabase
             .from('profiles')
@@ -321,7 +329,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       provider_name: user?.name || 'Anonymous',
       status: 'Available',
       distance: Math.floor(Math.random() * 10) + 1,
-      is_safety_verified: item.isSafetyVerified || false
+      is_safety_verified: item.is_safety_verified || false
     }]);
 
     if (error) {
