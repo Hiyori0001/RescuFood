@@ -21,8 +21,21 @@ const Auth = () => {
     if (session) {
       const finalize = async () => {
         const pendingRole = localStorage.getItem('pending_role');
+        
         if (pendingRole) {
-          await supabase.from('profiles').update({ role: pendingRole }).eq('id', session.user.id);
+          // Check if the user already has a role, specifically protecting Admin status
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('role')
+            .eq('id', session.user.id)
+            .maybeSingle();
+
+          // Only update the role if the user is NOT already an Admin
+          // This prevents Admins from accidentally downgrading their account
+          if (profile?.role !== 'Admin') {
+            await supabase.from('profiles').update({ role: pendingRole }).eq('id', session.user.id);
+          }
+          
           localStorage.removeItem('pending_role');
           await refreshProfile();
         }
