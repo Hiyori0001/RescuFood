@@ -6,15 +6,41 @@ import { motion } from 'framer-motion';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Truck, CheckCircle2, Clock, MapPin, Star, User, XCircle, ArrowDownLeft, Navigation, Settings, ExternalLink, Heart, Leaf, Utensils } from 'lucide-react';
+import { Truck, CheckCircle2, Clock, MapPin, Star, User, XCircle, ArrowDownLeft, Navigation, Settings, ExternalLink, Heart, Leaf, Utensils, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { Link } from 'react-router-dom';
+import { Link, Navigate } from 'react-router-dom';
 import RoleInfo from '@/components/RoleInfo';
 
 const Dashboard = () => {
-  const { user, transactions, updateTransactionStatus, claimDelivery, inventory } = useApp();
+  const { user, session, transactions, updateTransactionStatus, claimDelivery, inventory, loading } = useApp();
 
-  if (!user) return <div className="p-20 text-center">Please login to view dashboard.</div>;
+  if (loading) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 gap-4">
+        <Loader2 className="w-10 h-10 text-emerald-600 animate-spin" />
+        <p className="text-slate-500 font-medium">Loading your dashboard...</p>
+      </div>
+    );
+  }
+
+  if (!session) {
+    return <Navigate to="/auth" replace />;
+  }
+
+  if (!user) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 gap-4 p-6 text-center">
+        <div className="w-16 h-16 rounded-2xl bg-amber-100 flex items-center justify-center text-amber-600 mb-2">
+          <User className="w-8 h-8" />
+        </div>
+        <h2 className="text-xl font-bold text-slate-900">Profile Not Found</h2>
+        <p className="text-slate-500 max-w-xs">We couldn't find your profile information. Please try logging in again or contact support.</p>
+        <Button asChild className="bg-emerald-600 mt-4">
+          <Link to="/auth">Back to Login</Link>
+        </Button>
+      </div>
+    );
+  }
 
   const incomingRequests = transactions.filter(t => 
     (t.providerId === user.id || user.role === 'Admin') && t.status === 'Pending'

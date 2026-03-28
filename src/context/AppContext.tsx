@@ -130,7 +130,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, []);
 
-  const fetchProfile = useCallback(async (userId: string) => {
+  const fetchProfile = useCallback(async (userId: string, retryCount = 0): Promise<UserProfile | null> => {
     try {
       const { data, error } = await supabase
         .from('profiles')
@@ -152,6 +152,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setUser(profile);
         fetchTransactions(userId, profile.role);
         return profile;
+      } else if (retryCount < 5) {
+        // If profile not found, wait 1s and retry (handles trigger delay)
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        return fetchProfile(userId, retryCount + 1);
       }
     } catch (e) {
       console.error("[AppContext] Profile fetch error:", e);
@@ -229,13 +233,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, currentSession) => {
       if (!isMounted) return;
-      setSession(currentSession);
       
-      if (currentSession) {
-        await fetchProfile(currentSession.user.id);
-      } else {
+      if (event === 'SIGNED_OUT') {
+        setSession(null);
         setUser(null);
         setTransactions([]);
+        setLoading(false);
+        return;
+      }
+
+      setSession(currentSession);
+      if (currentSession) {
+        setLoading(true);
+        await fetchProfile(currentSession.user.id);
+        setLoading(false);
       }
     });
 
@@ -267,6 +278,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       showError('Failed to add item');
       throw error;
     }
+    fetchInventory();
   };
 
   const requestFood = async (item: FoodItem) => {
@@ -286,6 +298,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     await supabase.from('inventory').update({ status: 'Requested' }).eq('id', item.id);
     showSuccess('Request sent successfully!');
+    fetchInventory();
+    fetchTransactions(session.user.id, user?.role);
   };
 
   const claimDelivery = async (transactionId: string) => {
@@ -305,6 +319,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
 
     showSuccess('Delivery claimed! You are now in transit.');
+    fetchTransactions(session.user.id, user?.role);
   };
 
   const updateTransactionStatus = async (transactionId: string, itemId: string, newStatus: string) => {
@@ -331,9 +346,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       };
       if (current) await supabase.from('impact_metrics').update(update).eq('id', current.id);
       else await supabase.from('impact_metrics').insert([update]);
+      fetchImpactMetrics();
     }
 
     showSuccess(`Status updated to ${newStatus}`);
+    fetchInventory();
+    if (session) fetchTransactions(session.user.id, user?.role);
   };
 
   const updateLocation = async (location: string) => {
@@ -358,19 +376,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const signOut = async () => {
     try {
+      setLoading(true);
+      await supabase.auth.signOut();
       setUser(null);
       setSession(null);
       setTransactions([]);
       localStorage.removeItem('pending_role');
-      await supabase.auth.signOut();
       showSuccess('Signed out successfully');
     } catch (e) {
       console.error("[AppContext] Sign out error:", e);
+    } finally {
+      setLoading(false);
     }
   };
 
   const refreshProfile = async () => {
-    if (session?.user.id) await fetchProfile(session.user.id);
+    if (session?.user.id) {
+      setLoading(true);
+      await fetchProfile(session.user.id);
+      setLoading(false);
+    }
   };
 
   return (

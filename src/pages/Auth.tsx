@@ -8,29 +8,48 @@ import { ThemeSupa } from '@supabase/auth-ui-shared';
 import { supabase } from '@/integrations/supabase/client';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Card } from '@/components/ui/card';
-import { UtensilsCrossed, Store, Building2, HeartHandshake, ArrowLeft, Info, User } from 'lucide-react';
+import { UtensilsCrossed, Store, Building2, HeartHandshake, ArrowLeft, Info, User, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import RoleInfo, { ROLE_DESCRIPTIONS } from '@/components/RoleInfo';
 
 const Auth = () => {
-  const { session, loading, refreshProfile } = useApp();
+  const { session, loading, refreshProfile, user } = useApp();
   const navigate = useNavigate();
   const [selectedRole, setSelectedRole] = useState<UserRole | null>(null);
+  const [isFinalizing, setIsFinalizing] = useState(false);
 
   useEffect(() => {
-    if (session) {
+    if (session && !isFinalizing) {
       const finalizeAuth = async () => {
+        setIsFinalizing(true);
         const pendingRole = localStorage.getItem('pending_role');
+        
         if (pendingRole) {
-          await supabase.from('profiles').update({ role: pendingRole }).eq('id', session.user.id);
+          // Ensure profile exists and update role
+          const { error } = await supabase
+            .from('profiles')
+            .update({ role: pendingRole })
+            .eq('id', session.user.id);
+          
+          if (error) {
+            console.error("Error updating role:", error);
+          }
           localStorage.removeItem('pending_role');
         }
+        
         await refreshProfile();
-        navigate('/dashboard');
+        setIsFinalizing(false);
       };
       finalizeAuth();
     }
-  }, [session, navigate, refreshProfile]);
+  }, [session, refreshProfile, isFinalizing]);
+
+  // Separate effect for navigation to ensure user profile is loaded
+  useEffect(() => {
+    if (session && user && !isFinalizing) {
+      navigate('/dashboard');
+    }
+  }, [session, user, navigate, isFinalizing]);
 
   const roles: { id: UserRole; label: string; desc: string; icon: any; color: string; bg: string }[] = [
     { 
@@ -67,7 +86,14 @@ const Auth = () => {
     },
   ];
 
-  if (loading && !session) return <div className="min-h-screen flex items-center justify-center bg-slate-50">Loading...</div>;
+  if (loading || isFinalizing) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 gap-4">
+        <Loader2 className="w-10 h-10 text-emerald-600 animate-spin" />
+        <p className="text-slate-500 font-medium">Setting up your account...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6">
