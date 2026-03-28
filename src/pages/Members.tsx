@@ -6,7 +6,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { Users, UserCog, ArrowLeft, ShieldCheck, Store, Building2, HeartHandshake, User } from 'lucide-center';
+import { Users, ArrowLeft, ShieldCheck, Store, Building2, HeartHandshake, User } from 'lucide-react';
 import { showSuccess, showError } from '@/utils/toast';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
