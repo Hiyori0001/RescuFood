@@ -8,56 +8,29 @@ import { ThemeSupa } from '@supabase/auth-ui-shared';
 import { supabase } from '@/integrations/supabase/client';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Card } from '@/components/ui/card';
-import { UtensilsCrossed, Store, Building2, HeartHandshake, ArrowLeft, Info, User, ArrowRight } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { UtensilsCrossed, Store, Building2, HeartHandshake, ArrowLeft, Info, User } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import RoleInfo, { ROLE_DESCRIPTIONS } from '@/components/RoleInfo';
 
 const Auth = () => {
-  const { session, loading, refreshProfile, user } = useApp();
+  const { session, loading, refreshProfile } = useApp();
   const navigate = useNavigate();
   const [selectedRole, setSelectedRole] = useState<UserRole | null>(null);
-  const [isFinalizing, setIsFinalizing] = useState(false);
 
-  // Effect to handle redirection as soon as session is available
   useEffect(() => {
-    if (session && !isFinalizing) {
-      const finalize = async () => {
-        setIsFinalizing(true);
-        try {
-          const pendingRole = localStorage.getItem('pending_role');
-          
-          // Check if profile exists
-          const { data: profile } = await supabase
-            .from('profiles')
-            .select('role')
-            .eq('id', session.user.id)
-            .maybeSingle();
-
-          // If new user with a pending role, update it
-          if (pendingRole && (!profile || !profile.role)) {
-            await supabase.from('profiles').update({ role: pendingRole }).eq('id', session.user.id);
-          }
-          
+    if (session) {
+      const finalizeAuth = async () => {
+        const pendingRole = localStorage.getItem('pending_role');
+        if (pendingRole) {
+          await supabase.from('profiles').update({ role: pendingRole }).eq('id', session.user.id);
           localStorage.removeItem('pending_role');
-          await refreshProfile();
-          navigate('/dashboard');
-        } catch (error) {
-          console.error("Finalization error:", error);
-          // Even if profile update fails, try to navigate
-          navigate('/dashboard');
         }
+        await refreshProfile();
+        navigate('/dashboard');
       };
-      finalize();
+      finalizeAuth();
     }
-  }, [session, navigate, refreshProfile, isFinalizing]);
-
-  // Secondary check: if user object is already in context, definitely go to dashboard
-  useEffect(() => {
-    if (user && session) {
-      navigate('/dashboard');
-    }
-  }, [user, session, navigate]);
+  }, [session, navigate, refreshProfile]);
 
   const roles: { id: UserRole; label: string; desc: string; icon: any; color: string; bg: string }[] = [
     { 
@@ -96,27 +69,6 @@ const Auth = () => {
 
   if (loading && !session) return <div className="min-h-screen flex items-center justify-center bg-slate-50">Loading...</div>;
 
-  // If already logged in but redirect hasn't happened, show a simple "Go to Dashboard" UI
-  if (session) {
-    return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6">
-        <Card className="w-full max-w-md p-8 text-center rounded-[2rem] border-none shadow-xl">
-          <div className="w-16 h-16 bg-emerald-100 rounded-2xl flex items-center justify-center mx-auto mb-6">
-            <User className="w-8 h-8 text-emerald-600" />
-          </div>
-          <h2 className="text-2xl font-bold text-slate-900 mb-2">Welcome Back!</h2>
-          <p className="text-slate-500 mb-8">You are successfully logged in. Redirecting you now...</p>
-          <Button 
-            onClick={() => navigate('/dashboard')}
-            className="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-6 rounded-xl font-bold"
-          >
-            Go to Dashboard <ArrowRight className="ml-2 w-4 h-4" />
-          </Button>
-        </Card>
-      </div>
-    );
-  }
-
   return (
     <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6">
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="w-full max-w-md">
@@ -131,9 +83,6 @@ const Auth = () => {
         <AnimatePresence mode="wait">
           {!selectedRole ? (
             <motion.div key="role-selection" initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} className="grid gap-4">
-              <div className="mb-2 text-center">
-                <p className="text-sm font-medium text-slate-600">Choose your role to get started</p>
-              </div>
               {roles.map((role) => (
                 <button
                   key={role.id}
@@ -160,14 +109,6 @@ const Auth = () => {
                   </p>
                 </button>
               ))}
-              <div className="mt-4 text-center">
-                <button 
-                  onClick={() => setSelectedRole('Volunteer')} 
-                  className="text-sm text-emerald-600 font-semibold hover:underline"
-                >
-                  Already have an account? Sign In
-                </button>
-              </div>
             </motion.div>
           ) : (
             <motion.div key="auth-form" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}>

@@ -221,22 +221,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
       if (fetchError) return;
 
-      // If the user already has a role (like Admin from trigger), DO NOT overwrite it
-      if (profile && profile.role) {
-        localStorage.removeItem('pending_role');
-        await fetchProfile(session.user.id);
-        return;
-      }
-
-      // Only update if they don't have a role yet
-      const { error: updateError } = await supabase
-        .from('profiles')
-        .update({ role: pendingRole })
-        .eq('id', session.user.id);
-      
-      if (!updateError) {
-        localStorage.removeItem('pending_role');
-        await fetchProfile(session.user.id);
+      if (profile) {
+        if (profile.role !== pendingRole) {
+          const { error: updateError } = await supabase
+            .from('profiles')
+            .update({ role: pendingRole })
+            .eq('id', session.user.id);
+          
+          if (!updateError) {
+            localStorage.removeItem('pending_role');
+            showSuccess(`Account successfully set up as ${pendingRole}`);
+            await fetchProfile(session.user.id);
+          }
+        } else {
+          localStorage.removeItem('pending_role');
+          await fetchProfile(session.user.id);
+        }
       } else if (syncAttempts.current < 10) {
         syncAttempts.current++;
         setTimeout(syncRole, 1000);
@@ -321,7 +321,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       provider_name: user?.name || 'Anonymous',
       status: 'Available',
       distance: Math.floor(Math.random() * 10) + 1,
-      is_safety_verified: item.is_safety_verified || false
+      is_safety_verified: item.isSafetyVerified || false
     }]);
 
     if (error) {
