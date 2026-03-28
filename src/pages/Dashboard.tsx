@@ -1,17 +1,20 @@
 "use client";
 
-import React from 'react';
+import React, { useState } from 'react';
 import { useApp } from '@/context/AppContext';
 import { motion } from 'framer-motion';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Truck, CheckCircle2, Clock, MapPin, Star, User, XCircle, ArrowDownLeft, Info, Navigation } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Truck, CheckCircle2, Clock, MapPin, Star, User, XCircle, ArrowDownLeft, Info, Navigation, Save } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import RoleInfo, { ROLE_DESCRIPTIONS } from '@/components/RoleInfo';
+import RoleInfo from '@/components/RoleInfo';
 
 const Dashboard = () => {
-  const { user, transactions, updateTransactionStatus, claimDelivery } = useApp();
+  const { user, transactions, updateTransactionStatus, claimDelivery, updateLocation } = useApp();
+  const [newLocation, setNewLocation] = useState(user?.location || '');
+  const [isEditingLocation, setIsEditingLocation] = useState(false);
 
   if (!user) return <div className="p-20 text-center">Please login to view dashboard.</div>;
 
@@ -39,17 +42,43 @@ const Dashboard = () => {
     window.open(url, '_blank');
   };
 
+  const handleSaveLocation = async () => {
+    await updateLocation(newLocation);
+    setIsEditingLocation(false);
+  };
+
   return (
     <div className="min-h-screen bg-slate-50 p-6 pb-24 md:pt-24">
       <div className="max-w-5xl mx-auto">
-        <header className="mb-8 flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div>
+        <header className="mb-8 flex flex-col md:flex-row md:items-center justify-between gap-6">
+          <div className="flex-1">
             <h1 className="text-3xl font-bold text-slate-900">Welcome, {user.name}</h1>
-            <div className="flex items-center gap-2 mt-1">
+            <div className="flex flex-wrap items-center gap-3 mt-2">
               <RoleInfo role={user.role} className="text-emerald-700 bg-emerald-50 px-3 py-1 rounded-full text-xs" />
+              
+              <div className="flex items-center gap-2 bg-white px-3 py-1 rounded-full border border-slate-100 shadow-sm">
+                <MapPin className="w-3 h-3 text-emerald-600" />
+                {isEditingLocation ? (
+                  <div className="flex items-center gap-2">
+                    <Input 
+                      value={newLocation} 
+                      onChange={(e) => setNewLocation(e.target.value)}
+                      className="h-6 text-xs w-32 border-none bg-slate-50"
+                      placeholder="Enter location..."
+                    />
+                    <button onClick={handleSaveLocation} className="text-emerald-600 hover:text-emerald-700">
+                      <Save className="w-3 h-3" />
+                    </button>
+                  </div>
+                ) : (
+                  <button onClick={() => setIsEditingLocation(true)} className="text-xs text-slate-600 hover:text-emerald-600 transition-colors">
+                    {user.location || 'Set Current Location'}
+                  </button>
+                )}
+              </div>
             </div>
           </div>
-          <div className="flex gap-4">
+          <div className="flex gap-6">
             <div className="text-right">
               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Trust Score</p>
               <div className="flex items-center gap-1 justify-end">
@@ -130,13 +159,22 @@ const Dashboard = () => {
                             {t.status}
                           </Badge>
                         </div>
-                        <button 
-                          onClick={() => openMap(undefined, 'Pickup Location')}
-                          className="text-sm text-slate-500 flex items-center gap-1 hover:text-emerald-600 transition-colors"
-                        >
-                          <MapPin className="w-3 h-3" /> 
-                          {t.status === 'In Transit' ? 'Volunteer is on the way' : t.status === 'Approved' ? 'Ready for pickup' : 'Requesting...'}
-                        </button>
+                        <div className="flex flex-col gap-1">
+                          <button 
+                            onClick={() => openMap(undefined, t.providerLocation || 'Pickup Location')}
+                            className="text-xs text-slate-500 flex items-center gap-1 hover:text-emerald-600 transition-colors"
+                          >
+                            <MapPin className="w-3 h-3" /> 
+                            Pickup: {t.providerLocation || 'Not specified'}
+                          </button>
+                          <button 
+                            onClick={() => openMap(undefined, t.beneficiaryLocation || 'Dropoff Location')}
+                            className="text-xs text-slate-500 flex items-center gap-1 hover:text-emerald-600 transition-colors"
+                          >
+                            <MapPin className="w-3 h-3" /> 
+                            Dropoff: {t.beneficiaryLocation || 'Not specified'}
+                          </button>
+                        </div>
                       </div>
                     </div>
 
@@ -147,8 +185,8 @@ const Dashboard = () => {
                         </Button>
                       )}
                       {t.status === 'In Transit' && (t.volunteerId === user.id || user.role === 'Admin') && (
-                        <Button onClick={() => openMap('Pickup', 'Destination')} variant="outline" className="rounded-xl border-blue-200 text-blue-600">
-                          <Navigation className="w-4 h-4 mr-2" /> Navigate
+                        <Button onClick={() => openMap(t.providerLocation, t.beneficiaryLocation)} variant="outline" className="rounded-xl border-blue-200 text-blue-600">
+                          <Navigation className="w-4 h-4 mr-2" /> Route Map
                         </Button>
                       )}
                       {t.status === 'In Transit' && (t.volunteerId === user.id || user.role === 'Admin') && (

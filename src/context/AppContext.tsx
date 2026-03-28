@@ -11,6 +11,7 @@ export interface UserProfile {
   id: string;
   name: string;
   role: UserRole;
+  location?: string;
 }
 
 export interface FoodItem {
@@ -40,6 +41,8 @@ export interface Transaction {
   volunteerName?: string;
   status: string;
   createdAt: string;
+  providerLocation?: string;
+  beneficiaryLocation?: string;
 }
 
 interface AppState {
@@ -60,6 +63,7 @@ interface AppContextType extends AppState {
   requestFood: (item: FoodItem) => Promise<void>;
   claimDelivery: (transactionId: string) => Promise<void>;
   updateTransactionStatus: (transactionId: string, itemId: string, newStatus: string) => Promise<void>;
+  updateLocation: (location: string) => Promise<void>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
 }
@@ -86,7 +90,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         .from('transactions')
         .select(`
           *,
-          inventory:item_id (name)
+          inventory:item_id (name),
+          provider:provider_id (location),
+          beneficiary:beneficiary_id (location)
         `);
 
       if (role !== 'Admin') {
@@ -102,6 +108,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
       setTransactions((data || []).map(t => {
         const inv = Array.isArray(t.inventory) ? t.inventory[0] : t.inventory;
+        const prov = Array.isArray(t.provider) ? t.provider[0] : t.provider;
+        const bene = Array.isArray(t.beneficiary) ? t.beneficiary[0] : t.beneficiary;
+        
         return {
           id: t.id,
           itemId: t.item_id,
@@ -110,7 +119,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           beneficiaryId: t.beneficiary_id,
           volunteerId: t.volunteer_id,
           status: t.status,
-          createdAt: t.created_at
+          createdAt: t.created_at,
+          providerLocation: prov?.location,
+          beneficiaryLocation: bene?.location
         };
       }));
     } catch (e) {
@@ -133,6 +144,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           id: data.id,
           name: data.full_name || 'User',
           role: data.role as UserRole,
+          location: data.location
         };
         setUser(profile);
         fetchTransactions(userId, profile.role);
@@ -299,7 +311,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       expiry_date: item.expiryDate,
       pricing: item.pricing,
       price: item.price || 0,
-      location: item.location,
+      location: user?.location || 'Unknown Location',
       provider_id: session.user.id,
       provider_name: user?.name || 'Anonymous',
       status: 'Available',
@@ -380,6 +392,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     showSuccess(`Status updated to ${newStatus}`);
   };
 
+  const updateLocation = async (location: string) => {
+    if (!session?.user) return;
+    const { error } = await supabase.from('profiles').update({ location }).eq('id', session.user.id);
+    if (error) showError('Failed to update location');
+    else {
+      showSuccess('Location updated!');
+      fetchProfile(session.user.id);
+    }
+  };
+
   const signOut = async () => {
     try {
       setUser(null);
@@ -400,7 +422,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   return (
     <AppContext.Provider value={{ 
       user, session, inventory, transactions, impactMetrics, loading,
-      addFoodItem, requestFood, claimDelivery, updateTransactionStatus, signOut, refreshProfile
+      addFoodItem, requestFood, claimDelivery, updateTransactionStatus, updateLocation, signOut, refreshProfile
     }}>
       {children}
     </AppContext.Provider>
