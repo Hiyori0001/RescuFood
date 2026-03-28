@@ -13,84 +13,36 @@ import { cn } from '@/lib/utils';
 import RoleInfo, { ROLE_DESCRIPTIONS } from '@/components/RoleInfo';
 
 const Auth = () => {
-  const { session, loading, refreshProfile, user } = useApp();
+  const { session, loading, refreshProfile } = useApp();
   const navigate = useNavigate();
   const [selectedRole, setSelectedRole] = useState<UserRole | null>(null);
-  const [isFinalizing, setIsFinalizing] = useState(false);
 
   useEffect(() => {
-    if (session && !isFinalizing) {
-      const finalizeAuth = async () => {
-        setIsFinalizing(true);
+    if (session) {
+      const finalize = async () => {
         const pendingRole = localStorage.getItem('pending_role');
-        
         if (pendingRole) {
-          // Ensure profile exists and update role
-          const { error } = await supabase
-            .from('profiles')
-            .update({ role: pendingRole })
-            .eq('id', session.user.id);
-          
-          if (error) {
-            console.error("Error updating role:", error);
-          }
+          await supabase.from('profiles').update({ role: pendingRole }).eq('id', session.user.id);
           localStorage.removeItem('pending_role');
+          await refreshProfile();
         }
-        
-        await refreshProfile();
-        setIsFinalizing(false);
+        navigate('/dashboard');
       };
-      finalizeAuth();
+      finalize();
     }
-  }, [session, refreshProfile, isFinalizing]);
-
-  // Separate effect for navigation to ensure user profile is loaded
-  useEffect(() => {
-    if (session && user && !isFinalizing) {
-      navigate('/dashboard');
-    }
-  }, [session, user, navigate, isFinalizing]);
+  }, [session, navigate, refreshProfile]);
 
   const roles: { id: UserRole; label: string; desc: string; icon: any; color: string; bg: string }[] = [
-    { 
-      id: 'Provider', 
-      label: 'Commercial Provider', 
-      desc: 'Restaurants, Hotels, Groceries', 
-      icon: Store, 
-      color: 'text-blue-600', 
-      bg: 'bg-blue-50' 
-    },
-    { 
-      id: 'Donor', 
-      label: 'Individual Donor', 
-      desc: 'Donate surplus from home', 
-      icon: User, 
-      color: 'text-rose-600', 
-      bg: 'bg-rose-50' 
-    },
-    { 
-      id: 'NGO', 
-      label: 'NGO / Charity', 
-      desc: 'Distribute food to those in need', 
-      icon: Building2, 
-      color: 'text-emerald-600', 
-      bg: 'bg-emerald-50' 
-    },
-    { 
-      id: 'Volunteer', 
-      label: 'Volunteer', 
-      desc: 'Help with logistics and delivery', 
-      icon: HeartHandshake, 
-      color: 'text-amber-600', 
-      bg: 'bg-amber-50' 
-    },
+    { id: 'Provider', label: 'Commercial Provider', desc: 'Restaurants, Hotels, Groceries', icon: Store, color: 'text-blue-600', bg: 'bg-blue-50' },
+    { id: 'Donor', label: 'Individual Donor', desc: 'Donate surplus from home', icon: User, color: 'text-rose-600', bg: 'bg-rose-50' },
+    { id: 'NGO', label: 'NGO / Charity', desc: 'Distribute food to those in need', icon: Building2, color: 'text-emerald-600', bg: 'bg-emerald-50' },
+    { id: 'Volunteer', label: 'Volunteer', desc: 'Help with logistics and delivery', icon: HeartHandshake, color: 'text-amber-600', bg: 'bg-amber-50' },
   ];
 
-  if (loading || isFinalizing) {
+  if (loading) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 gap-4">
         <Loader2 className="w-10 h-10 text-emerald-600 animate-spin" />
-        <p className="text-slate-500 font-medium">Setting up your account...</p>
       </div>
     );
   }

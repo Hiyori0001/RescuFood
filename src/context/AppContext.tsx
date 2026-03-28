@@ -130,7 +130,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, []);
 
-  const fetchProfile = useCallback(async (userId: string, retryCount = 0): Promise<UserProfile | null> => {
+  const fetchProfile = useCallback(async (userId: string): Promise<UserProfile | null> => {
     try {
       const { data, error } = await supabase
         .from('profiles')
@@ -152,10 +152,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setUser(profile);
         fetchTransactions(userId, profile.role);
         return profile;
-      } else if (retryCount < 5) {
-        // If profile not found, wait 1s and retry (handles trigger delay)
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        return fetchProfile(userId, retryCount + 1);
       }
     } catch (e) {
       console.error("[AppContext] Profile fetch error:", e);
@@ -244,7 +240,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
       setSession(currentSession);
       if (currentSession) {
-        setLoading(true);
         await fetchProfile(currentSession.user.id);
         setLoading(false);
       }
@@ -392,9 +387,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const refreshProfile = async () => {
     if (session?.user.id) {
-      setLoading(true);
       await fetchProfile(session.user.id);
-      setLoading(false);
     }
   };
 
