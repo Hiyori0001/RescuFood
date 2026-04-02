@@ -12,7 +12,7 @@ import { Link, Navigate } from 'react-router-dom';
 import RoleInfo from '@/components/RoleInfo';
 
 const Dashboard = () => {
-  const { user, session, transactions, updateTransactionStatus, claimDelivery, inventory, loading, refreshProfile } = useApp();
+  const { user, session, transactions, updateTransactionStatus, claimDelivery, inventory, loading, refreshData } = useApp();
 
   if (loading) {
     return (
@@ -102,7 +102,7 @@ const Dashboard = () => {
             <div className="flex-1">
               <div className="flex items-center gap-3">
                 <h1 className="text-3xl font-bold text-slate-900">{user.name}</h1>
-                <Button onClick={() => refreshProfile()} variant="ghost" size="icon" className="h-8 w-8 rounded-full hover:bg-emerald-50 text-slate-400 hover:text-emerald-600">
+                <Button onClick={() => refreshData()} variant="ghost" size="icon" className="h-8 w-8 rounded-full hover:bg-emerald-50 text-slate-400 hover:text-emerald-600">
                   <RefreshCw className="w-4 h-4" />
                 </Button>
                 <Button asChild variant="ghost" size="icon" className="h-8 w-8 rounded-full hover:bg-emerald-50 text-slate-400 hover:text-emerald-600">

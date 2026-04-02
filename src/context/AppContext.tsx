@@ -69,6 +69,7 @@ interface AppContextType extends AppState {
   updateProfile: (updates: { full_name?: string; bio?: string; avatar_url?: string }) => Promise<void>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
+  refreshData: () => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -87,6 +88,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const fetchTransactions = useCallback(async (userId: string, role?: UserRole) => {
     try {
+      // Simplified query to ensure reliability
       let query = supabase
         .from('transactions')
         .select(`
@@ -97,6 +99,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         `);
 
       if (role !== 'Admin') {
+        // Providers see their own items, NGOs see their requests, Volunteers see approved/claimed tasks
         if (role === 'Volunteer') {
           query = query.or(`status.eq.Approved,volunteer_id.eq.${userId},status.eq.In Transit`);
         } else {
@@ -130,35 +133,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, []);
 
-  const fetchProfile = useCallback(async (userId: string): Promise<UserProfile | null> => {
-    try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', userId)
-        .maybeSingle();
-      
-      if (error) throw error;
-
-      if (data) {
-        const profile: UserProfile = {
-          id: data.id,
-          name: data.full_name || 'User',
-          role: data.role as UserRole,
-          location: data.location,
-          bio: data.bio,
-          avatar_url: data.avatar_url
-        };
-        setUser(profile);
-        fetchTransactions(userId, profile.role);
-        return profile;
-      }
-    } catch (e) {
-      console.error("[AppContext] Profile fetch error:", e);
-    }
-    return null;
-  }, [fetchTransactions]);
-
   const fetchInventory = useCallback(async () => {
     try {
       const { data, error } = await supabase
@@ -189,6 +163,35 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, []);
 
+  const fetchProfile = useCallback(async (userId: string): Promise<UserProfile | null> => {
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .maybeSingle();
+      
+      if (error) throw error;
+
+      if (data) {
+        const profile: UserProfile = {
+          id: data.id,
+          name: data.full_name || 'User',
+          role: data.role as UserRole,
+          location: data.location,
+          bio: data.bio,
+          avatar_url: data.avatar_url
+        };
+        setUser(profile);
+        fetchTransactions(userId, profile.role);
+        return profile;
+      }
+    } catch (e) {
+      console.error("[AppContext] Profile fetch error:", e);
+    }
+    return null;
+  }, [fetchTransactions]);
+
   const fetchImpactMetrics = useCallback(async () => {
     try {
       const { data } = await supabase.from('impact_metrics').select('*').maybeSingle();
@@ -203,6 +206,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       console.error("[AppContext] Fetch impact metrics error:", e);
     }
   }, []);
+
+  const refreshData = useCallback(async () => {
+    if (session?.user.id) {
+      await Promise.all([
+        fetchProfile(session.user.id),
+        fetchInventory(),
+        fetchImpactMetrics()
+      ]);
+    } else {
+      await Promise.all([
+        fetchInventory(),
+        fetchImpactMetrics()
+      ]);
+    }
+  }, [session, fetchProfile, fetchInventory, fetchImpactMetrics]);
 
   useEffect(() => {
     // Initial session check
@@ -236,10 +254,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         'postgres_changes',
         { event: '*', schema: 'public', table: 'transactions' },
         () => {
-          if (session?.user.id) {
-            fetchTransactions(session.user.id, user?.role);
-            fetchInventory();
-          }
+          refreshData();
         }
       )
       .subscribe();
@@ -248,7 +263,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       subscription.unsubscribe();
       supabase.removeChannel(transactionChannel);
     };
-  }, [fetchProfile, fetchInventory, fetchImpactMetrics, fetchTransactions, session, user?.role]);
+  }, [fetchProfile, fetchInventory, fetchImpactMetrics, refreshData]);
 
   const addFoodItem = async (item: any) => {
     if (!session?.user) return;
@@ -292,8 +307,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     await supabase.from('inventory').update({ status: 'Requested' }).eq('id', item.id);
     showSuccess('Request sent successfully!');
-    fetchInventory();
-    fetchTransactions(session.user.id, user?.role);
+    refreshData();
   };
 
   const claimDelivery = async (transactionId: string) => {
@@ -313,7 +327,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
 
     showSuccess('Delivery claimed! You are now in transit.');
-    fetchTransactions(session.user.id, user?.role);
+    refreshData();
   };
 
   const updateTransactionStatus = async (transactionId: string, itemId: string, newStatus: string) => {
@@ -344,8 +358,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
 
     showSuccess(`Status updated to ${newStatus}`);
-    fetchInventory();
-    if (session) fetchTransactions(session.user.id, user?.role);
+    refreshData();
   };
 
   const updateLocation = async (location: string) => {
@@ -393,7 +406,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   return (
     <AppContext.Provider value={{ 
       user, session, inventory, transactions, impactMetrics, loading,
-      addFoodItem, requestFood, claimDelivery, updateTransactionStatus, updateLocation, updateProfile, signOut, refreshProfile
+      addFoodItem, requestFood, claimDelivery, updateTransactionStatus, updateLocation, updateProfile, signOut, refreshProfile, refreshData
     }}>
       {children}
     </AppContext.Provider>
