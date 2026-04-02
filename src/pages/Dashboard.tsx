@@ -6,7 +6,7 @@ import { motion } from 'framer-motion';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Truck, CheckCircle2, Clock, MapPin, Star, User, XCircle, ArrowDownLeft, Navigation, Settings, ExternalLink, Heart, Leaf, Utensils, Loader2, RefreshCw } from 'lucide-react';
+import { Truck, CheckCircle2, Clock, MapPin, Star, User, XCircle, ArrowDownLeft, Navigation, Settings, ExternalLink, Heart, Leaf, Utensils, Loader2, RefreshCw, ArrowUpRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Link, Navigate } from 'react-router-dom';
 import RoleInfo from '@/components/RoleInfo';
@@ -45,7 +45,12 @@ const Dashboard = () => {
   // Filter for requests that need approval (Pending status)
   // Providers and Donors see requests for items they listed
   const incomingRequests = transactions.filter(t => 
-    (t.providerId === user.id || user.role === 'Admin') && t.status === 'Pending'
+    t.status === 'Pending' && (t.providerId === user.id || user.role === 'Admin')
+  );
+
+  // NGOs see their own pending requests
+  const myPendingRequests = transactions.filter(t => 
+    t.status === 'Pending' && t.beneficiaryId === user.id
   );
 
   // Filter for active tasks (Approved, In Transit)
@@ -53,7 +58,7 @@ const Dashboard = () => {
     const isFinished = t.status === 'Delivered' || t.status === 'Cancelled';
     if (isFinished) return false;
     
-    // Don't show pending requests in the active tasks section (they have their own section)
+    // Don't show pending requests in the active tasks section
     if (t.status === 'Pending') return false;
     
     if (user.role === 'Admin') return true;
@@ -86,6 +91,7 @@ const Dashboard = () => {
   };
 
   const isProviderOrDonor = user.role === 'Provider' || user.role === 'Donor' || user.role === 'Admin';
+  const isNGO = user.role === 'NGO' || user.role === 'Admin';
 
   return (
     <div className="min-h-screen bg-slate-50 p-6 pb-24 md:pt-24">
@@ -142,54 +148,12 @@ const Dashboard = () => {
           </div>
         </header>
 
-        {user.role === 'Donor' && (
-          <section className="mb-10">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <Card className="border-none shadow-sm rounded-3xl bg-emerald-600 text-white">
-                <CardContent className="p-6">
-                  <div className="flex items-center gap-4 mb-4">
-                    <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center">
-                      <Heart className="w-6 h-6 text-white" />
-                    </div>
-                    <h3 className="font-bold">Your Impact</h3>
-                  </div>
-                  <p className="text-3xl font-bold mb-1">{completedCount * 10}</p>
-                  <p className="text-xs text-emerald-100">People fed through your donations</p>
-                </CardContent>
-              </Card>
-              <Card className="border-none shadow-sm rounded-3xl bg-white">
-                <CardContent className="p-6">
-                  <div className="flex items-center gap-4 mb-4">
-                    <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center">
-                      <Leaf className="w-6 h-6 text-blue-600" />
-                    </div>
-                    <h3 className="font-bold text-slate-900">CO2 Saved</h3>
-                  </div>
-                  <p className="text-3xl font-bold text-slate-900 mb-1">{completedCount * 5}kg</p>
-                  <p className="text-xs text-slate-500">Greenhouse gases prevented</p>
-                </CardContent>
-              </Card>
-              <Card className="border-none shadow-sm rounded-3xl bg-white">
-                <CardContent className="p-6">
-                  <div className="flex items-center gap-4 mb-4">
-                    <div className="w-10 h-10 rounded-xl bg-amber-50 flex items-center justify-center">
-                      <Utensils className="w-6 h-6 text-amber-600" />
-                    </div>
-                    <h3 className="font-bold text-slate-900">Active Donations</h3>
-                  </div>
-                  <p className="text-3xl font-bold text-slate-900 mb-1">{myDonations.filter(d => d.status === 'Available').length}</p>
-                  <p className="text-xs text-slate-500">Items currently in marketplace</p>
-                </CardContent>
-              </Card>
-            </div>
-          </section>
-        )}
-
+        {/* Incoming Requests for Providers */}
         {isProviderOrDonor && (
           <section className="mb-10">
             <h2 className="text-xl font-bold text-slate-900 mb-4 flex items-center gap-2">
               <ArrowDownLeft className="w-5 h-5 text-emerald-600" />
-              {user.role === 'Admin' ? 'All Pending Requests' : 'Incoming Requests'} ({incomingRequests.length})
+              Incoming Requests ({incomingRequests.length})
             </h2>
             <div className="grid gap-4">
               {incomingRequests.length === 0 ? (
@@ -231,6 +195,37 @@ const Dashboard = () => {
                   </motion.div>
                 ))
               )}
+            </div>
+          </section>
+        )}
+
+        {/* My Requests for NGOs */}
+        {isNGO && myPendingRequests.length > 0 && (
+          <section className="mb-10">
+            <h2 className="text-xl font-bold text-slate-900 mb-4 flex items-center gap-2">
+              <ArrowUpRight className="w-5 h-5 text-blue-600" />
+              My Pending Requests ({myPendingRequests.length})
+            </h2>
+            <div className="grid gap-4">
+              {myPendingRequests.map((t) => (
+                <motion.div key={t.id} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
+                  <Card className="border-none shadow-sm rounded-2xl overflow-hidden bg-white border-l-4 border-blue-500">
+                    <div className="p-6 flex items-center justify-between">
+                      <div className="flex items-start gap-4">
+                        <div className="w-12 h-12 rounded-2xl bg-blue-50 flex items-center justify-center shrink-0">
+                          <Clock className="w-6 h-6 text-blue-600" />
+                        </div>
+                        <div>
+                          <h3 className="font-bold text-slate-900">{t.itemName}</h3>
+                          <p className="text-sm text-slate-500">Waiting for provider approval</p>
+                          <p className="text-xs text-slate-400 mt-1">Requested: {new Date(t.createdAt).toLocaleString()}</p>
+                        </div>
+                      </div>
+                      <Badge className="bg-blue-100 text-blue-700 border-none">Pending</Badge>
+                    </div>
+                  </Card>
+                </motion.div>
+              ))}
             </div>
           </section>
         )}

@@ -86,6 +86,63 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     communitiesServed: 0,
   });
 
+  const fetchTransactions = useCallback(async (userId: string, role?: UserRole) => {
+    try {
+      console.log("[AppContext] Fetching transactions for:", userId, role);
+      
+      let query = supabase
+        .from('transactions')
+        .select(`
+          *,
+          inventory:item_id (name),
+          provider:provider_id (location),
+          beneficiary:beneficiary_id (location)
+        `);
+
+      // Apply role-based filtering
+      if (role !== 'Admin') {
+        if (role === 'Volunteer') {
+          // Volunteers see approved tasks or tasks they've claimed
+          query = query.or(`status.eq.Approved,volunteer_id.eq.${userId},status.eq.In Transit`);
+        } else {
+          // Providers and NGOs see transactions where they are either the provider or beneficiary
+          query = query.or(`provider_id.eq.${userId},beneficiary_id.eq.${userId}`);
+        }
+      }
+
+      const { data, error } = await query.order('created_at', { ascending: false });
+      
+      if (error) {
+        console.error("[AppContext] Transaction fetch error:", error);
+        throw error;
+      }
+
+      const mappedTransactions = (data || []).map(t => {
+        const inv = Array.isArray(t.inventory) ? t.inventory[0] : t.inventory;
+        const prov = Array.isArray(t.provider) ? t.provider[0] : t.provider;
+        const bene = Array.isArray(t.beneficiary) ? t.beneficiary[0] : t.beneficiary;
+        
+        return {
+          id: t.id,
+          itemId: t.item_id,
+          itemName: inv?.name || 'Unknown Item',
+          providerId: t.provider_id,
+          beneficiaryId: t.beneficiary_id,
+          volunteerId: t.volunteer_id,
+          status: t.status,
+          createdAt: t.created_at,
+          providerLocation: prov?.location,
+          beneficiaryLocation: bene?.location
+        };
+      });
+
+      console.log("[AppContext] Mapped transactions:", mappedTransactions.length);
+      setTransactions(mappedTransactions);
+    } catch (e) {
+      console.error("[AppContext] fetchTransactions failed:", e);
+    }
+  }, []);
+
   const fetchInventory = useCallback(async () => {
     try {
       const { data, error } = await supabase
@@ -116,57 +173,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, []);
 
-  const fetchTransactions = useCallback(async (userId: string, role?: UserRole) => {
-    try {
-      // We fetch all transactions the user is involved in. 
-      // RLS will handle the security, but we'll be explicit in our query.
-      let query = supabase
-        .from('transactions')
-        .select(`
-          *,
-          inventory:item_id (name),
-          provider:provider_id (location),
-          beneficiary:beneficiary_id (location)
-        `);
-
-      // If not admin, filter by involvement
-      if (role !== 'Admin') {
-        if (role === 'Volunteer') {
-          // Volunteers see approved tasks or tasks they've claimed
-          query = query.or(`status.eq.Approved,volunteer_id.eq.${userId},status.eq.In Transit`);
-        } else {
-          // Providers and NGOs see their own transactions
-          query = query.or(`provider_id.eq.${userId},beneficiary_id.eq.${userId}`);
-        }
-      }
-
-      const { data, error } = await query.order('created_at', { ascending: false });
-      if (error) throw error;
-
-      setTransactions((data || []).map(t => {
-        // Handle potential array response from joins
-        const inv = Array.isArray(t.inventory) ? t.inventory[0] : t.inventory;
-        const prov = Array.isArray(t.provider) ? t.provider[0] : t.provider;
-        const bene = Array.isArray(t.beneficiary) ? t.beneficiary[0] : t.beneficiary;
-        
-        return {
-          id: t.id,
-          itemId: t.item_id,
-          itemName: inv?.name || 'Unknown Item',
-          providerId: t.provider_id,
-          beneficiaryId: t.beneficiary_id,
-          volunteerId: t.volunteer_id,
-          status: t.status,
-          createdAt: t.created_at,
-          providerLocation: prov?.location,
-          beneficiaryLocation: bene?.location
-        };
-      }));
-    } catch (e) {
-      console.error("[AppContext] Fetch transactions error:", e);
-    }
-  }, []);
-
   const fetchProfile = useCallback(async (userId: string): Promise<UserProfile | null> => {
     try {
       const { data, error } = await supabase
@@ -187,15 +193,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           avatar_url: data.avatar_url
         };
         setUser(profile);
-        // Fetch transactions immediately after profile is loaded
-        fetchTransactions(userId, profile.role);
         return profile;
       }
     } catch (e) {
       console.error("[AppContext] Profile fetch error:", e);
     }
     return null;
-  }, [fetchTransactions]);
+  }, []);
 
   const fetchImpactMetrics = useCallback(async () => {
     try {
@@ -233,7 +237,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     supabase.auth.getSession().then(({ data: { session: initialSession } }) => {
       setSession(initialSession);
       if (initialSession) {
-        fetchProfile(initialSession.user.id);
+        refreshData();
       }
       setLoading(false);
     });
@@ -242,16 +246,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, currentSession) => {
       setSession(currentSession);
       if (currentSession) {
-        fetchProfile(currentSession.user.id);
+        refreshData();
       } else {
         setUser(null);
         setTransactions([]);
       }
       setLoading(false);
     });
-
-    fetchInventory();
-    fetchImpactMetrics();
 
     // Real-time subscription for transactions and inventory
     const channel = supabase
@@ -278,7 +279,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       subscription.unsubscribe();
       supabase.removeChannel(channel);
     };
-  }, [fetchProfile, fetchInventory, fetchImpactMetrics, refreshData]);
+  }, [refreshData, fetchInventory]);
 
   const addFoodItem = async (item: any) => {
     if (!session?.user) return;
