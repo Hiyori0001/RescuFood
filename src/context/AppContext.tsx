@@ -90,18 +90,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     try {
       console.log("[AppContext] Fetching transactions for:", userId, role);
       
-      // Simplified query to avoid join issues
       let query = supabase
         .from('transactions')
         .select(`
           *,
-          inventory:item_id (name)
+          inventory:item_id (name),
+          provider:provider_id (location),
+          beneficiary:beneficiary_id (location)
         `);
 
+      // Apply role-based filtering
       if (role !== 'Admin') {
         if (role === 'Volunteer') {
+          // Volunteers see approved tasks or tasks they've claimed
           query = query.or(`status.eq.Approved,volunteer_id.eq.${userId},status.eq.In Transit`);
         } else {
+          // Providers and NGOs see transactions where they are either the provider or beneficiary
           query = query.or(`provider_id.eq.${userId},beneficiary_id.eq.${userId}`);
         }
       }
@@ -115,6 +119,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
       const mappedTransactions = (data || []).map(t => {
         const inv = Array.isArray(t.inventory) ? t.inventory[0] : t.inventory;
+        const prov = Array.isArray(t.provider) ? t.provider[0] : t.provider;
+        const bene = Array.isArray(t.beneficiary) ? t.beneficiary[0] : t.beneficiary;
         
         return {
           id: t.id,
@@ -124,11 +130,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           beneficiaryId: t.beneficiary_id,
           volunteerId: t.volunteer_id,
           status: t.status,
-          createdAt: t.created_at
+          createdAt: t.created_at,
+          providerLocation: prov?.location,
+          beneficiaryLocation: bene?.location
         };
       });
 
-      console.log("[AppContext] Successfully fetched transactions:", mappedTransactions.length);
+      console.log("[AppContext] Mapped transactions:", mappedTransactions.length);
       setTransactions(mappedTransactions);
     } catch (e) {
       console.error("[AppContext] fetchTransactions failed:", e);
@@ -209,7 +217,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, []);
 
   const refreshData = useCallback(async () => {
-    console.log("[AppContext] Refreshing all data...");
     if (session?.user.id) {
       const profile = await fetchProfile(session.user.id);
       await Promise.all([

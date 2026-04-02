@@ -1,19 +1,18 @@
 "use client";
 
-import React, { useState } from 'react';
+import React from 'react';
 import { useApp } from '@/context/AppContext';
 import { motion } from 'framer-motion';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Truck, CheckCircle2, Clock, MapPin, Star, User, XCircle, ArrowDownLeft, Navigation, Settings, ExternalLink, Heart, Leaf, Utensils, Loader2, RefreshCw, ArrowUpRight, Bug } from 'lucide-react';
+import { Truck, CheckCircle2, Clock, MapPin, Star, User, XCircle, ArrowDownLeft, Navigation, Settings, ExternalLink, Heart, Leaf, Utensils, Loader2, RefreshCw, ArrowUpRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Link, Navigate } from 'react-router-dom';
 import RoleInfo from '@/components/RoleInfo';
 
 const Dashboard = () => {
   const { user, session, transactions, updateTransactionStatus, claimDelivery, inventory, loading, refreshData } = useApp();
-  const [showDebug, setShowDebug] = useState(false);
 
   if (loading) {
     return (
@@ -78,6 +77,19 @@ const Dashboard = () => {
     (user.role === 'Admin' || t.providerId === user.id || t.beneficiaryId === user.id || t.volunteerId === user.id)
   ).length;
 
+  const myDonations = inventory.filter(item => item.providerId === user.id);
+
+  const openMap = (location?: string) => {
+    if (!location) return;
+    const url = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(location)}`;
+    window.open(url, '_blank');
+  };
+
+  const openRoute = (origin?: string, destination?: string) => {
+    const url = `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(origin || 'Current Location')}&destination=${encodeURIComponent(destination || '')}`;
+    window.open(url, '_blank');
+  };
+
   const isProviderOrDonor = user.role === 'Provider' || user.role === 'Donor' || user.role === 'Admin';
   const isNGO = user.role === 'NGO' || user.role === 'Admin';
 
@@ -99,15 +111,21 @@ const Dashboard = () => {
                 <Button onClick={() => refreshData()} variant="ghost" size="icon" className="h-8 w-8 rounded-full hover:bg-emerald-50 text-slate-400 hover:text-emerald-600">
                   <RefreshCw className="w-4 h-4" />
                 </Button>
-                <Button onClick={() => setShowDebug(!showDebug)} variant="ghost" size="icon" className="h-8 w-8 rounded-full hover:bg-emerald-50 text-slate-400 hover:text-emerald-600">
-                  <Bug className="w-4 h-4" />
+                <Button asChild variant="ghost" size="icon" className="h-8 w-8 rounded-full hover:bg-emerald-50 text-slate-400 hover:text-emerald-600">
+                  <Link to="/profile"><Settings className="w-4 h-4" /></Link>
                 </Button>
               </div>
               <div className="flex flex-wrap items-center gap-3 mt-2">
                 <RoleInfo role={user.role} className="text-emerald-700 bg-emerald-50 px-3 py-1 rounded-full text-xs" />
+                
                 <div className="flex items-center gap-2 bg-white px-3 py-1 rounded-full border border-slate-100 shadow-sm">
                   <MapPin className="w-3 h-3 text-emerald-600" />
                   <span className="text-xs text-slate-600">{user.location || 'Location not set'}</span>
+                  {user.location && (
+                    <button onClick={() => openMap(user.location)} className="text-slate-400 hover:text-emerald-600">
+                      <ExternalLink className="w-3 h-3" />
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
@@ -129,25 +147,6 @@ const Dashboard = () => {
             </div>
           </div>
         </header>
-
-        {showDebug && (
-          <Card className="mb-8 border-2 border-dashed border-amber-200 bg-amber-50 p-4 rounded-2xl">
-            <h3 className="font-bold text-amber-800 mb-2 flex items-center gap-2"><Bug className="w-4 h-4" /> Debug Info</h3>
-            <div className="grid grid-cols-2 gap-4 text-xs font-mono">
-              <div>User ID: {user.id}</div>
-              <div>Role: {user.role}</div>
-              <div>Total Transactions: {transactions.length}</div>
-              <div>Pending Requests: {incomingRequests.length}</div>
-            </div>
-            <div className="mt-4 space-y-1">
-              {transactions.map(t => (
-                <div key={t.id} className="p-1 bg-white rounded border border-amber-100 text-[10px]">
-                  ID: {t.id.slice(0,8)} | Status: {t.status} | Prov: {t.providerId?.slice(0,8)} | Bene: {t.beneficiaryId?.slice(0,8)}
-                </div>
-              ))}
-            </div>
-          </Card>
-        )}
 
         {/* Incoming Requests for Providers */}
         {isProviderOrDonor && (
@@ -258,10 +257,20 @@ const Dashboard = () => {
                           </Badge>
                         </div>
                         <div className="flex flex-col gap-1">
-                          <span className="text-xs text-slate-500 flex items-center gap-1">
+                          <button 
+                            onClick={() => openMap(t.providerLocation)}
+                            className="text-xs text-slate-500 flex items-center gap-1 hover:text-emerald-600 transition-colors"
+                          >
                             <MapPin className="w-3 h-3" /> 
-                            Status: {t.status}
-                          </span>
+                            Pickup: {t.providerLocation || 'Not specified'}
+                          </button>
+                          <button 
+                            onClick={() => openMap(t.beneficiaryLocation)}
+                            className="text-xs text-slate-500 flex items-center gap-1 hover:text-emerald-600 transition-colors"
+                          >
+                            <MapPin className="w-3 h-3" /> 
+                            Dropoff: {t.beneficiaryLocation || 'Not specified'}
+                          </button>
                         </div>
                       </div>
                     </div>
@@ -270,6 +279,11 @@ const Dashboard = () => {
                       {user.role === 'Volunteer' && t.status === 'Approved' && !t.volunteerId && (
                         <Button onClick={() => claimDelivery(t.id)} className="bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold">
                           Claim Delivery
+                        </Button>
+                      )}
+                      {t.status === 'In Transit' && (t.volunteerId === user.id || user.role === 'Admin') && (
+                        <Button onClick={() => openRoute(t.providerLocation, t.beneficiaryLocation)} variant="outline" className="rounded-xl border-blue-200 text-blue-600">
+                          <Navigation className="w-4 h-4 mr-2" /> Route Map
                         </Button>
                       )}
                       {t.status === 'In Transit' && (t.volunteerId === user.id || user.role === 'Admin') && (
