@@ -6,13 +6,13 @@ import { motion } from 'framer-motion';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Truck, CheckCircle2, Clock, MapPin, Star, User, XCircle, ArrowDownLeft, Navigation, Settings, ExternalLink, Heart, Leaf, Utensils, Loader2 } from 'lucide-react';
+import { Truck, CheckCircle2, Clock, MapPin, Star, User, XCircle, ArrowDownLeft, Navigation, Settings, ExternalLink, Heart, Leaf, Utensils, Loader2, RefreshCw } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Link, Navigate } from 'react-router-dom';
 import RoleInfo from '@/components/RoleInfo';
 
 const Dashboard = () => {
-  const { user, session, transactions, updateTransactionStatus, claimDelivery, inventory, loading } = useApp();
+  const { user, session, transactions, updateTransactionStatus, claimDelivery, inventory, loading, refreshProfile } = useApp();
 
   if (loading) {
     return (
@@ -74,6 +74,8 @@ const Dashboard = () => {
     window.open(url, '_blank');
   };
 
+  const isProviderOrDonor = user.role === 'Provider' || user.role === 'Donor' || user.role === 'Admin';
+
   return (
     <div className="min-h-screen bg-slate-50 p-6 pb-24 md:pt-24">
       <div className="max-w-5xl mx-auto">
@@ -89,6 +91,9 @@ const Dashboard = () => {
             <div className="flex-1">
               <div className="flex items-center gap-3">
                 <h1 className="text-3xl font-bold text-slate-900">{user.name}</h1>
+                <Button onClick={() => refreshProfile()} variant="ghost" size="icon" className="h-8 w-8 rounded-full hover:bg-emerald-50 text-slate-400 hover:text-emerald-600">
+                  <RefreshCw className="w-4 h-4" />
+                </Button>
                 <Button asChild variant="ghost" size="icon" className="h-8 w-8 rounded-full hover:bg-emerald-50 text-slate-400 hover:text-emerald-600">
                   <Link to="/profile"><Settings className="w-4 h-4" /></Link>
                 </Button>
@@ -169,39 +174,45 @@ const Dashboard = () => {
           </section>
         )}
 
-        {incomingRequests.length > 0 && (
+        {isProviderOrDonor && (
           <section className="mb-10">
             <h2 className="text-xl font-bold text-slate-900 mb-4 flex items-center gap-2">
               <ArrowDownLeft className="w-5 h-5 text-emerald-600" />
               {user.role === 'Admin' ? 'All Pending Requests' : 'Incoming Requests'} ({incomingRequests.length})
             </h2>
             <div className="grid gap-4">
-              {incomingRequests.map((t) => (
-                <motion.div key={t.id} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
-                  <Card className="border-none shadow-md rounded-2xl overflow-hidden bg-white border-l-4 border-emerald-500">
-                    <div className="p-6 flex flex-col md:flex-row md:items-center justify-between gap-6">
-                      <div className="flex items-start gap-4">
-                        <div className="w-12 h-12 rounded-2xl bg-emerald-50 flex items-center justify-center shrink-0">
-                          <Clock className="w-6 h-6 text-emerald-600" />
+              {incomingRequests.length === 0 ? (
+                <div className="bg-white p-8 rounded-3xl text-center border border-slate-100">
+                  <p className="text-slate-400 text-sm">No pending requests for your food items.</p>
+                </div>
+              ) : (
+                incomingRequests.map((t) => (
+                  <motion.div key={t.id} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
+                    <Card className="border-none shadow-md rounded-2xl overflow-hidden bg-white border-l-4 border-emerald-500">
+                      <div className="p-6 flex flex-col md:flex-row md:items-center justify-between gap-6">
+                        <div className="flex items-start gap-4">
+                          <div className="w-12 h-12 rounded-2xl bg-emerald-50 flex items-center justify-center shrink-0">
+                            <Clock className="w-6 h-6 text-emerald-600" />
+                          </div>
+                          <div>
+                            <h3 className="font-bold text-slate-900">{t.itemName}</h3>
+                            <p className="text-sm text-slate-500">Requested by an NGO</p>
+                            <p className="text-xs text-slate-400 mt-1">Created: {new Date(t.createdAt).toLocaleString()}</p>
+                          </div>
                         </div>
-                        <div>
-                          <h3 className="font-bold text-slate-900">{t.itemName}</h3>
-                          <p className="text-sm text-slate-500">Requested by an NGO</p>
-                          <p className="text-xs text-slate-400 mt-1">Created: {new Date(t.createdAt).toLocaleString()}</p>
+                        <div className="flex items-center gap-3">
+                          <Button onClick={() => updateTransactionStatus(t.id, t.itemId, 'Approved')} className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl px-6">
+                            Approve Request
+                          </Button>
+                          <Button variant="outline" onClick={() => updateTransactionStatus(t.id, t.itemId, 'Cancelled')} className="border-rose-200 text-rose-600 hover:bg-rose-50 rounded-xl">
+                            <XCircle className="w-4 h-4 mr-2" /> Reject
+                          </Button>
                         </div>
                       </div>
-                      <div className="flex items-center gap-3">
-                        <Button onClick={() => updateTransactionStatus(t.id, t.itemId, 'Approved')} className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl px-6">
-                          Approve Request
-                        </Button>
-                        <Button variant="outline" onClick={() => updateTransactionStatus(t.id, t.itemId, 'Cancelled')} className="border-rose-200 text-rose-600 hover:bg-rose-50 rounded-xl">
-                          <XCircle className="w-4 h-4 mr-2" /> Reject
-                        </Button>
-                      </div>
-                    </div>
-                  </Card>
-                </motion.div>
-              ))}
+                    </Card>
+                  </motion.div>
+                ))
+              )}
             </div>
           </section>
         )}
