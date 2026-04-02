@@ -42,18 +42,29 @@ const Dashboard = () => {
     );
   }
 
+  // Filter for requests that need approval (Pending status)
+  // Providers and Donors see requests for items they listed
   const incomingRequests = transactions.filter(t => 
     (t.providerId === user.id || user.role === 'Admin') && t.status === 'Pending'
   );
 
+  // Filter for active tasks (Approved, In Transit)
   const myActiveTasks = transactions.filter(t => {
     const isFinished = t.status === 'Delivered' || t.status === 'Cancelled';
     if (isFinished) return false;
-    if ((t.providerId === user.id || user.role === 'Admin') && t.status === 'Pending') return false;
+    
+    // Don't show pending requests in the active tasks section (they have their own section)
+    if (t.status === 'Pending') return false;
+    
     if (user.role === 'Admin') return true;
-    const isInvolved = t.providerId === user.id || t.beneficiaryId === user.id || t.volunteerId === user.id;
-    const isAvailableForVolunteer = user.role === 'Volunteer' && t.status === 'Approved' && !t.volunteerId;
-    return isInvolved || isAvailableForVolunteer;
+    
+    // Volunteers see approved tasks that haven't been claimed yet, or tasks they've claimed
+    if (user.role === 'Volunteer') {
+      return (t.status === 'Approved' && !t.volunteerId) || t.volunteerId === user.id;
+    }
+    
+    // Providers and NGOs see tasks they are involved in
+    return t.providerId === user.id || t.beneficiaryId === user.id;
   });
   
   const completedCount = transactions.filter(t => 
@@ -201,10 +212,17 @@ const Dashboard = () => {
                           </div>
                         </div>
                         <div className="flex items-center gap-3">
-                          <Button onClick={() => updateTransactionStatus(t.id, t.itemId, 'Approved')} className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl px-6">
+                          <Button 
+                            onClick={() => updateTransactionStatus(t.id, t.itemId, 'Approved')} 
+                            className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl px-6 font-bold"
+                          >
                             Approve Request
                           </Button>
-                          <Button variant="outline" onClick={() => updateTransactionStatus(t.id, t.itemId, 'Cancelled')} className="border-rose-200 text-rose-600 hover:bg-rose-50 rounded-xl">
+                          <Button 
+                            variant="outline" 
+                            onClick={() => updateTransactionStatus(t.id, t.itemId, 'Cancelled')} 
+                            className="border-rose-200 text-rose-600 hover:bg-rose-50 rounded-xl"
+                          >
                             <XCircle className="w-4 h-4 mr-2" /> Reject
                           </Button>
                         </div>
@@ -264,7 +282,7 @@ const Dashboard = () => {
 
                     <div className="flex items-center gap-3">
                       {user.role === 'Volunteer' && t.status === 'Approved' && !t.volunteerId && (
-                        <Button onClick={() => claimDelivery(t.id)} className="bg-blue-600 hover:bg-blue-700 text-white rounded-xl">
+                        <Button onClick={() => claimDelivery(t.id)} className="bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold">
                           Claim Delivery
                         </Button>
                       )}
@@ -274,7 +292,7 @@ const Dashboard = () => {
                         </Button>
                       )}
                       {t.status === 'In Transit' && (t.volunteerId === user.id || user.role === 'Admin') && (
-                        <Button onClick={() => updateTransactionStatus(t.id, t.itemId, 'Delivered')} className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl">
+                        <Button onClick={() => updateTransactionStatus(t.id, t.itemId, 'Delivered')} className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold">
                           <CheckCircle2 className="w-4 h-4 mr-2" /> Mark Delivered
                         </Button>
                       )}
