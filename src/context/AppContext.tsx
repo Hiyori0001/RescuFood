@@ -229,8 +229,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     fetchInventory();
     fetchImpactMetrics();
 
-    return () => subscription.unsubscribe();
-  }, [fetchProfile, fetchInventory, fetchImpactMetrics]);
+    // Real-time subscription for transactions
+    const transactionChannel = supabase
+      .channel('transaction-updates')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'transactions' },
+        () => {
+          if (session?.user.id) {
+            fetchTransactions(session.user.id, user?.role);
+            fetchInventory();
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      subscription.unsubscribe();
+      supabase.removeChannel(transactionChannel);
+    };
+  }, [fetchProfile, fetchInventory, fetchImpactMetrics, fetchTransactions, session, user?.role]);
 
   const addFoodItem = async (item: any) => {
     if (!session?.user) return;
