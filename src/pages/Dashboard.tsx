@@ -29,7 +29,7 @@ const Dashboard = () => {
   // Volunteers see pending requests as "Available Deliveries"
   const availableDeliveries = transactions.filter(t => t.status === 'Pending' && user.role === 'Volunteer');
   
-  // Providers see pending requests as "Waiting for Volunteer"
+  // Providers see pending requests as "Incoming Requests" (Waiting for Volunteer)
   const incomingRequests = transactions.filter(t => t.status === 'Pending' && (t.providerId === user.id || user.role === 'Admin'));
 
   // NGOs see their pending requests

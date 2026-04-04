@@ -99,8 +99,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
       if (role !== 'Admin') {
         if (role === 'Volunteer') {
-          // Volunteers see pending requests (available to claim) or tasks they've claimed
-          query = query.or(`status.eq.Pending,volunteer_id.eq.${userId},status.eq.In Transit`);
+          // Volunteers see ALL pending requests (available to claim) 
+          // OR tasks they have already claimed (In Transit)
+          query = query.or(`status.eq.Pending,and(volunteer_id.eq.${userId},status.eq.In Transit)`);
         } else {
           // Providers and NGOs see transactions where they are involved
           query = query.or(`provider_id.eq.${userId},beneficiary_id.eq.${userId}`);
