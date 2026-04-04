@@ -8,20 +8,19 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { User, MapPin, Save, ArrowLeft, Camera, Star, CheckCircle2 } from 'lucide-react';
+import { User, Save, ArrowLeft, Camera, Star, CheckCircle2 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import RoleInfo from '@/components/RoleInfo';
 
 const Profile = () => {
-  const { user, updateProfile, updateLocation, transactions } = useApp();
+  const { user, updateProfile, transactions } = useApp();
   const navigate = useNavigate();
   const [isSaving, setIsSaving] = useState(false);
   
   const [formData, setFormData] = useState({
     full_name: user?.name || '',
     bio: user?.bio || '',
-    avatar_url: user?.avatar_url || '',
-    location: user?.location || ''
+    avatar_url: user?.avatar_url || ''
   });
 
   useEffect(() => {
@@ -29,8 +28,7 @@ const Profile = () => {
       setFormData({
         full_name: user.name || '',
         bio: user.bio || '',
-        avatar_url: user.avatar_url || '',
-        location: user.location || ''
+        avatar_url: user.avatar_url || ''
       });
     }
   }, [user]);
@@ -57,9 +55,6 @@ const Profile = () => {
         bio: formData.bio,
         avatar_url: formData.avatar_url
       });
-      if (formData.location !== user.location) {
-        await updateLocation(formData.location);
-      }
     } finally {
       setIsSaving(false);
     }
@@ -103,9 +98,6 @@ const Profile = () => {
                   <h2 className="text-3xl font-bold text-slate-900">{user.name}</h2>
                   <div className="flex items-center gap-3 mt-2">
                     <RoleInfo role={user.role} className="text-emerald-700 bg-emerald-50 px-3 py-1 rounded-full text-xs" />
-                    <span className="text-slate-400 text-xs flex items-center gap-1">
-                      <MapPin className="w-3 h-3" /> {user.location || 'Location not set'}
-                    </span>
                   </div>
                 </div>
                 <div className="flex gap-6">
@@ -135,27 +127,15 @@ const Profile = () => {
             </CardHeader>
             <CardContent>
               <form onSubmit={handleSave} className="space-y-6">
-                <div className="grid md:grid-cols-2 gap-6">
-                  <div className="space-y-2">
-                    <Label htmlFor="full_name">Full Name</Label>
-                    <Input 
-                      id="full_name"
-                      value={formData.full_name}
-                      onChange={e => setFormData({...formData, full_name: e.target.value})}
-                      className="rounded-xl border-slate-100"
-                      placeholder="Your full name"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="location">Current Location</Label>
-                    <Input 
-                      id="location"
-                      value={formData.location}
-                      onChange={e => setFormData({...formData, location: e.target.value})}
-                      className="rounded-xl border-slate-100"
-                      placeholder="City, Area"
-                    />
-                  </div>
+                <div className="space-y-2">
+                  <Label htmlFor="full_name">Full Name</Label>
+                  <Input 
+                    id="full_name"
+                    value={formData.full_name}
+                    onChange={e => setFormData({...formData, full_name: e.target.value})}
+                    className="rounded-xl border-slate-100"
+                    placeholder="Your full name"
+                  />
                 </div>
 
                 <div className="space-y-2">

@@ -6,7 +6,7 @@ import { motion } from 'framer-motion';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Truck, CheckCircle2, Clock, MapPin, Star, User, Navigation, Settings, ExternalLink, Loader2, RefreshCw, ArrowUpRight } from 'lucide-react';
+import { Truck, CheckCircle2, Clock, MapPin, Star, User, Navigation, Settings, RefreshCw, ArrowUpRight, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Link, Navigate } from 'react-router-dom';
 import RoleInfo from '@/components/RoleInfo';
@@ -42,12 +42,8 @@ const Dashboard = () => {
   ).length;
 
   const openMap = (location?: string) => {
-    if (!location) return;
+    if (!location || location === 'Location not specified') return;
     window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(location)}`, '_blank');
-  };
-
-  const openRoute = (origin?: string, destination?: string) => {
-    window.open(`https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(origin || 'Current Location')}&destination=${encodeURIComponent(destination || '')}`, '_blank');
   };
 
   return (
@@ -70,11 +66,6 @@ const Dashboard = () => {
               </div>
               <div className="flex flex-wrap items-center gap-3 mt-2">
                 <RoleInfo role={user.role} className="text-emerald-700 bg-emerald-50 px-3 py-1 rounded-full text-xs" />
-                <div className="flex items-center gap-2 bg-white px-3 py-1 rounded-full border border-slate-100 shadow-sm">
-                  <MapPin className="w-3 h-3 text-emerald-600" />
-                  <span className="text-xs text-slate-600">{user.location || 'Location not set'}</span>
-                  {user.location && <button onClick={() => openMap(user.location)} className="text-slate-400 hover:text-emerald-600"><ExternalLink className="w-3 h-3" /></button>}
-                </div>
               </div>
             </div>
           </div>
@@ -120,10 +111,10 @@ const Dashboard = () => {
                           <div>
                             <h3 className="font-bold text-slate-900">{t.itemName}</h3>
                             <p className="text-xs text-slate-500 flex items-center gap-1 mt-1">
-                              <MapPin className="w-3 h-3" /> Pickup: {t.providerLocation || 'Unknown'}
+                              <MapPin className="w-3 h-3" /> Pickup: {t.providerLocation}
                             </p>
                             <p className="text-xs text-slate-500 flex items-center gap-1">
-                              <MapPin className="w-3 h-3" /> Dropoff: {t.beneficiaryLocation || 'Unknown'}
+                              <User className="w-3 h-3" /> Deliver to: {t.beneficiaryName}
                             </p>
                           </div>
                         </div>
@@ -196,34 +187,23 @@ const Dashboard = () => {
                           </div>
                           <div className="flex flex-col gap-1">
                             <button onClick={() => openMap(t.providerLocation)} className="text-xs text-slate-500 flex items-center gap-1 hover:text-emerald-600 transition-colors">
-                              <MapPin className="w-3 h-3" /> Pickup: {t.providerLocation || 'Not specified'}
+                              <MapPin className="w-3 h-3" /> Pickup: {t.providerLocation}
                             </button>
-                            <button onClick={() => openMap(t.beneficiaryLocation)} className="text-xs text-slate-500 flex items-center gap-1 hover:text-emerald-600 transition-colors">
-                              <MapPin className="w-3 h-3" /> Dropoff: {t.beneficiaryLocation || 'Not specified'}
-                            </button>
+                            <p className="text-xs text-slate-500 flex items-center gap-1">
+                              <User className="w-3 h-3" /> Deliver to: {t.beneficiaryName}
+                            </p>
                           </div>
                         </div>
                       </div>
                       <div className="flex items-center gap-3">
-                        <Button onClick={() => openRoute(t.providerLocation, t.beneficiaryLocation)} variant="outline" className="rounded-xl border-emerald-200 text-emerald-600">
-                          <Navigation className="w-4 h-4 mr-2" /> View Route
+                        <Button onClick={() => openMap(t.providerLocation)} variant="outline" className="rounded-xl border-emerald-200 text-emerald-600">
+                          <Navigation className="w-4 h-4 mr-2" /> View Pickup
                         </Button>
                         {(user.role === 'Volunteer' || user.role === 'Admin') && (
                           <Button onClick={() => updateTransactionStatus(t.id, t.itemId, 'Delivered')} className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold">
                             <CheckCircle2 className="w-4 h-4 mr-2" /> Mark Delivered
                           </Button>
                         )}
-                      </div>
-                    </div>
-                    <div className="px-6 pb-6">
-                      <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
-                        <div className="h-full bg-emerald-500 transition-all duration-1000" style={{ width: '75%' }} />
-                      </div>
-                      <div className="flex justify-between mt-2 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                        <span>Requested</span>
-                        <span>Accepted</span>
-                        <span className="text-emerald-600">In Transit</span>
-                        <span>Delivered</span>
                       </div>
                     </div>
                   </Card>

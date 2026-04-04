@@ -11,9 +11,9 @@ export interface UserProfile {
   id: string;
   name: string;
   role: UserRole;
-  location?: string;
   bio?: string;
   avatar_url?: string;
+  location?: string; // Kept in interface for UI, but not fetched from DB
 }
 
 export interface FoodItem {
@@ -40,11 +40,10 @@ export interface Transaction {
   providerId: string;
   beneficiaryId: string;
   volunteerId?: string;
-  volunteerName?: string;
   status: string;
   createdAt: string;
   providerLocation?: string;
-  beneficiaryLocation?: string;
+  beneficiaryName?: string;
 }
 
 interface AppState {
@@ -65,7 +64,6 @@ interface AppContextType extends AppState {
   requestFood: (item: FoodItem) => Promise<void>;
   claimDelivery: (transactionId: string) => Promise<void>;
   updateTransactionStatus: (transactionId: string, itemId: string, newStatus: string) => Promise<void>;
-  updateLocation: (location: string) => Promise<void>;
   updateProfile: (updates: { full_name?: string; bio?: string; avatar_url?: string }) => Promise<void>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
@@ -88,23 +86,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const fetchTransactions = useCallback(async (userId: string, role?: UserRole) => {
     try {
-      console.log(`[AppContext] Fetching transactions for ${role} (${userId})`);
+      // We join with inventory to get the location, as profiles doesn't have a location column
       let query = supabase
         .from('transactions')
         .select(`
           *,
-          inventory:item_id (name),
-          provider:provider_id (location),
-          beneficiary:beneficiary_id (location)
+          inventory:item_id (name, location),
+          beneficiary:beneficiary_id (full_name)
         `);
 
       if (role !== 'Admin') {
         if (role === 'Volunteer') {
-          // Volunteers see ALL 'Approved' requests (waiting for volunteer) 
-          // OR tasks they are already involved in
           query = query.or(`status.eq.Approved,volunteer_id.eq.${userId}`);
         } else {
-          // Providers and NGOs see transactions where they are involved
           query = query.or(`provider_id.eq.${userId},beneficiary_id.eq.${userId}`);
         }
       }
@@ -112,9 +106,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const { data, error } = await query.order('created_at', { ascending: false });
       if (error) throw error;
 
-      const mapped = (data || []).map(t => {
+      setTransactions((data || []).map(t => {
         const inv = Array.isArray(t.inventory) ? t.inventory[0] : t.inventory;
-        const prov = Array.isArray(t.provider) ? t.provider[0] : t.provider;
         const bene = Array.isArray(t.beneficiary) ? t.beneficiary[0] : t.beneficiary;
         
         return {
@@ -126,13 +119,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           volunteerId: t.volunteer_id,
           status: t.status,
           createdAt: t.created_at,
-          providerLocation: prov?.location,
-          beneficiaryLocation: bene?.location
+          providerLocation: inv?.location || 'Location not specified',
+          beneficiaryName: bene?.full_name || 'NGO Partner'
         };
-      });
-
-      console.log(`[AppContext] Found ${mapped.length} transactions`);
-      setTransactions(mapped);
+      }));
     } catch (e) {
       console.error("[AppContext] Fetch transactions error:", e);
     }
@@ -183,7 +173,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           id: data.id,
           name: data.full_name || 'User',
           role: data.role as UserRole,
-          location: data.location,
           bio: data.bio,
           avatar_url: data.avatar_url
         };
@@ -249,14 +238,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const channel = supabase
       .channel('db-changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'transactions' }, (payload) => {
-        console.log("[AppContext] Real-time transaction update:", payload);
-        // Notify volunteers about new approved requests
-        if (payload.eventType === 'INSERT' && payload.new.status === 'Approved' && user?.role === 'Volunteer') {
-          showSuccess('New delivery request available! Check your dashboard.');
-        }
-        refreshData();
-      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'transactions' }, () => refreshData())
       .on('postgres_changes', { event: '*', schema: 'public', table: 'inventory' }, () => fetchInventory())
       .subscribe();
 
@@ -264,7 +246,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       subscription.unsubscribe();
       supabase.removeChannel(channel);
     };
-  }, [refreshData, fetchInventory, user?.role]);
+  }, [refreshData, fetchInventory]);
 
   const addFoodItem = async (item: any) => {
     if (!session?.user) return;
@@ -275,7 +257,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       expiry_date: item.expiryDate,
       pricing: item.pricing,
       price: item.price || 0,
-      location: user?.location || 'Unknown Location',
+      location: item.location || 'Unknown Location',
       provider_id: session.user.id,
       provider_name: user?.name || 'Anonymous',
       status: 'Available',
@@ -288,23 +270,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const requestFood = async (item: FoodItem) => {
     if (!session?.user) return;
-    console.log(`[AppContext] NGO ${session.user.id} requesting item ${item.id}`);
-    
-    // We use 'Approved' status because the database RLS policy allows 
-    // non-involved users (volunteers) to see transactions with status 'Approved'.
     const { error: transError } = await supabase.from('transactions').insert([{
       item_id: item.id,
       provider_id: item.providerId,
       beneficiary_id: session.user.id,
       status: 'Approved'
     }]);
-    
     if (transError) {
-      console.error("[AppContext] Request error:", transError);
-      showError('Failed to create request: ' + transError.message);
+      showError('Failed to create request');
       return;
     }
-    
     await supabase.from('inventory').update({ status: 'Requested' }).eq('id', item.id);
     showSuccess('Request sent! Waiting for a volunteer to accept.');
     refreshData();
@@ -312,8 +287,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const claimDelivery = async (transactionId: string) => {
     if (!session?.user) return;
-    console.log(`[AppContext] Volunteer ${session.user.id} claiming transaction ${transactionId}`);
-    
     const { error } = await supabase
       .from('transactions')
       .update({ 
@@ -321,13 +294,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         status: 'In Transit' 
       })
       .eq('id', transactionId);
-      
     if (error) {
-      console.error("[AppContext] Claim error:", error);
-      showError('Failed to claim delivery: ' + error.message);
+      showError('Failed to claim delivery');
       return;
     }
-    
     showSuccess('Delivery accepted! You are now in transit.');
     refreshData();
   };
@@ -357,16 +327,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     refreshData();
   };
 
-  const updateLocation = async (location: string) => {
-    if (!session?.user) return;
-    const { error } = await supabase.from('profiles').update({ location }).eq('id', session.user.id);
-    if (error) showError('Failed to update location');
-    else {
-      showSuccess('Location updated!');
-      await fetchProfile(session.user.id);
-    }
-  };
-
   const updateProfile = async (updates: { full_name?: string; bio?: string; avatar_url?: string }) => {
     if (!session?.user) return;
     const { error } = await supabase.from('profiles').update(updates).eq('id', session.user.id);
@@ -393,7 +353,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   return (
     <AppContext.Provider value={{ 
       user, session, inventory, transactions, impactMetrics, loading,
-      addFoodItem, requestFood, claimDelivery, updateTransactionStatus, updateLocation, updateProfile, signOut, refreshProfile, refreshData
+      addFoodItem, requestFood, claimDelivery, updateTransactionStatus, updateProfile, signOut, refreshProfile, refreshData
     }}>
       {children}
     </AppContext.Provider>
