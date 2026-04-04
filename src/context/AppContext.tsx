@@ -88,6 +88,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const fetchTransactions = useCallback(async (userId: string, role?: UserRole) => {
     try {
+      console.log(`[AppContext] Fetching transactions for ${role} (${userId})`);
       let query = supabase
         .from('transactions')
         .select(`
@@ -111,7 +112,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const { data, error } = await query.order('created_at', { ascending: false });
       if (error) throw error;
 
-      setTransactions((data || []).map(t => {
+      const mapped = (data || []).map(t => {
         const inv = Array.isArray(t.inventory) ? t.inventory[0] : t.inventory;
         const prov = Array.isArray(t.provider) ? t.provider[0] : t.provider;
         const bene = Array.isArray(t.beneficiary) ? t.beneficiary[0] : t.beneficiary;
@@ -128,7 +129,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           providerLocation: prov?.location,
           beneficiaryLocation: bene?.location
         };
-      }));
+      });
+
+      console.log(`[AppContext] Found ${mapped.length} transactions`);
+      setTransactions(mapped);
     } catch (e) {
       console.error("[AppContext] Fetch transactions error:", e);
     }
@@ -246,6 +250,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const channel = supabase
       .channel('db-changes')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'transactions' }, (payload) => {
+        console.log("[AppContext] Real-time transaction update:", payload);
         // Notify volunteers about new approved requests
         if (payload.eventType === 'INSERT' && payload.new.status === 'Approved' && user?.role === 'Volunteer') {
           showSuccess('New delivery request available! Check your dashboard.');
@@ -283,6 +288,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const requestFood = async (item: FoodItem) => {
     if (!session?.user) return;
+    console.log(`[AppContext] NGO ${session.user.id} requesting item ${item.id}`);
+    
     // We use 'Approved' status because the database RLS policy allows 
     // non-involved users (volunteers) to see transactions with status 'Approved'.
     const { error: transError } = await supabase.from('transactions').insert([{
@@ -291,10 +298,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       beneficiary_id: session.user.id,
       status: 'Approved'
     }]);
+    
     if (transError) {
-      showError('Failed to create request');
+      console.error("[AppContext] Request error:", transError);
+      showError('Failed to create request: ' + transError.message);
       return;
     }
+    
     await supabase.from('inventory').update({ status: 'Requested' }).eq('id', item.id);
     showSuccess('Request sent! Waiting for a volunteer to accept.');
     refreshData();
@@ -302,6 +312,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const claimDelivery = async (transactionId: string) => {
     if (!session?.user) return;
+    console.log(`[AppContext] Volunteer ${session.user.id} claiming transaction ${transactionId}`);
+    
     const { error } = await supabase
       .from('transactions')
       .update({ 
@@ -309,10 +321,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         status: 'In Transit' 
       })
       .eq('id', transactionId);
+      
     if (error) {
-      showError('Failed to claim delivery');
+      console.error("[AppContext] Claim error:", error);
+      showError('Failed to claim delivery: ' + error.message);
       return;
     }
+    
     showSuccess('Delivery accepted! You are now in transit.');
     refreshData();
   };
