@@ -2,11 +2,11 @@
 
 import React from 'react';
 import { useApp } from '@/context/AppContext';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Truck, CheckCircle2, Clock, MapPin, Star, User, Navigation, Settings, ExternalLink, Loader2, RefreshCw, ArrowUpRight, AlertCircle, BellRing, PackageCheck } from 'lucide-react';
+import { Truck, CheckCircle2, Clock, MapPin, Star, User, Navigation, Settings, ExternalLink, Loader2, RefreshCw, ArrowUpRight, AlertCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Link, Navigate } from 'react-router-dom';
 import RoleInfo from '@/components/RoleInfo';
@@ -99,80 +99,86 @@ const Dashboard = () => {
           </div>
         </header>
 
-        {/* Volunteer: New Task Alert Prompt */}
-        {user.role === 'Volunteer' && availableDeliveries.length > 0 && (
-          <motion.div 
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="mb-10 p-6 bg-blue-600 rounded-[2rem] text-white shadow-xl shadow-blue-200 relative overflow-hidden"
-          >
-            <div className="absolute top-0 right-0 p-8 opacity-10">
-              <Truck className="w-32 h-32" />
-            </div>
-            <div className="relative z-10">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center animate-pulse">
-                  <BellRing className="w-5 h-5" />
-                </div>
-                <h2 className="text-xl font-bold">New Delivery Tasks Available!</h2>
-              </div>
-              <p className="text-blue-100 mb-6 max-w-md">There are {availableDeliveries.length} food items waiting for redistribution. Accept a task to start your delivery route.</p>
-              <div className="grid gap-4">
-                {availableDeliveries.map((t) => (
-                  <Card key={t.id} className="bg-white/10 border-none backdrop-blur-md text-white">
-                    <CardContent className="p-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
-                      <div className="flex items-start gap-3">
-                        <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center shrink-0">
-                          <PackageCheck className="w-5 h-5" />
-                        </div>
-                        <div>
-                          <h3 className="font-bold">{t.itemName}</h3>
-                          <p className="text-xs text-blue-100">Pickup: {t.providerLocation || 'Nearby'}</p>
-                        </div>
-                      </div>
-                      <Button 
-                        onClick={() => claimDelivery(t.id)} 
-                        className="bg-white text-blue-600 hover:bg-blue-50 rounded-xl font-bold px-6"
-                      >
-                        Accept Delivery
-                      </Button>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            </div>
-          </motion.div>
-        )}
-
-        {/* Provider: Incoming Requests Notification */}
-        {(user.role === 'Provider' || user.role === 'Donor') && incomingRequests.length > 0 && (
+        {/* Volunteer: Available Deliveries */}
+        {user.role === 'Volunteer' && (
           <section className="mb-10">
-            <div className="flex items-center gap-2 mb-4">
-              <AlertCircle className="w-5 h-5 text-amber-600" />
-              <h2 className="text-xl font-bold text-slate-900">Requests Waiting for Volunteer</h2>
-            </div>
+            <h2 className="text-xl font-bold text-slate-900 mb-4 flex items-center gap-2">
+              <Truck className="w-5 h-5 text-blue-600" />
+              Available Deliveries ({availableDeliveries.length})
+            </h2>
             <div className="grid gap-4">
-              {incomingRequests.map((t) => (
-                <Card key={t.id} className="border-none shadow-sm rounded-2xl overflow-hidden bg-white border-l-4 border-amber-500">
-                  <div className="p-6 flex items-center justify-between">
-                    <div className="flex items-start gap-4">
-                      <div className="w-12 h-12 rounded-2xl bg-amber-50 flex items-center justify-center shrink-0">
-                        <Clock className="w-6 h-6 text-amber-600" />
+              {availableDeliveries.length === 0 ? (
+                <div className="bg-white p-8 rounded-3xl text-center border border-slate-100">
+                  <p className="text-slate-400 text-sm">No pending deliveries available right now.</p>
+                </div>
+              ) : (
+                availableDeliveries.map((t) => (
+                  <motion.div key={t.id} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
+                    <Card className="border-none shadow-md rounded-2xl overflow-hidden bg-white border-l-4 border-blue-500">
+                      <div className="p-6 flex flex-col md:flex-row md:items-center justify-between gap-6">
+                        <div className="flex items-start gap-4">
+                          <div className="w-12 h-12 rounded-2xl bg-blue-50 flex items-center justify-center shrink-0">
+                            <Navigation className="w-6 h-6 text-blue-600" />
+                          </div>
+                          <div>
+                            <h3 className="font-bold text-slate-900">{t.itemName}</h3>
+                            <p className="text-xs text-slate-500 flex items-center gap-1 mt-1">
+                              <MapPin className="w-3 h-3" /> Pickup: {t.providerLocation || 'Unknown'}
+                            </p>
+                            <p className="text-xs text-slate-500 flex items-center gap-1">
+                              <MapPin className="w-3 h-3" /> Dropoff: {t.beneficiaryLocation || 'Unknown'}
+                            </p>
+                          </div>
+                        </div>
+                        <Button onClick={() => claimDelivery(t.id)} className="bg-blue-600 hover:bg-blue-700 text-white rounded-xl px-8 font-bold">
+                          Accept Delivery
+                        </Button>
                       </div>
-                      <div>
-                        <h3 className="font-bold text-slate-900">{t.itemName}</h3>
-                        <p className="text-sm text-slate-500">An NGO has requested this item. We are notifying nearby volunteers for pickup.</p>
-                      </div>
-                    </div>
-                    <Badge className="bg-amber-100 text-amber-700 border-none animate-pulse">Waiting for Volunteer</Badge>
-                  </div>
-                </Card>
-              ))}
+                    </Card>
+                  </motion.div>
+                ))
+              )}
             </div>
           </section>
         )}
 
-        {/* NGO: My Pending Requests */}
+        {/* Provider: Incoming Requests */}
+        {(user.role === 'Provider' || user.role === 'Donor') && (
+          <section className="mb-10">
+            <h2 className="text-xl font-bold text-slate-900 mb-4 flex items-center gap-2">
+              <AlertCircle className="w-5 h-5 text-amber-600" />
+              Incoming Requests ({incomingRequests.length})
+            </h2>
+            <div className="grid gap-4">
+              {incomingRequests.length === 0 ? (
+                <div className="bg-white p-8 rounded-3xl text-center border border-slate-100">
+                  <p className="text-slate-400 text-sm">No pending requests for your food items.</p>
+                </div>
+              ) : (
+                incomingRequests.map((t) => (
+                  <motion.div key={t.id} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
+                    <Card className="border-none shadow-sm rounded-2xl overflow-hidden bg-white border-l-4 border-amber-500">
+                      <div className="p-6 flex items-center justify-between">
+                        <div className="flex items-start gap-4">
+                          <div className="w-12 h-12 rounded-2xl bg-amber-50 flex items-center justify-center shrink-0">
+                            <Clock className="w-6 h-6 text-amber-600" />
+                          </div>
+                          <div>
+                            <h3 className="font-bold text-slate-900">{t.itemName}</h3>
+                            <p className="text-sm text-slate-500">Requested and waiting for a volunteer to accept delivery.</p>
+                          </div>
+                        </div>
+                        <Badge className="bg-amber-100 text-amber-700 border-none">Waiting for Volunteer</Badge>
+                      </div>
+                    </Card>
+                  </motion.div>
+                ))
+              )}
+            </div>
+          </section>
+        )}
+
+        {/* NGO: My Requests */}
         {user.role === 'NGO' && myPendingRequests.length > 0 && (
           <section className="mb-10">
             <h2 className="text-xl font-bold text-slate-900 mb-4 flex items-center gap-2">
@@ -181,30 +187,32 @@ const Dashboard = () => {
             </h2>
             <div className="grid gap-4">
               {myPendingRequests.map((t) => (
-                <Card key={t.id} className="border-none shadow-sm rounded-2xl overflow-hidden bg-white border-l-4 border-blue-500">
-                  <div className="p-6 flex items-center justify-between">
-                    <div className="flex items-start gap-4">
-                      <div className="w-12 h-12 rounded-2xl bg-blue-50 flex items-center justify-center shrink-0">
-                        <Clock className="w-6 h-6 text-blue-600" />
+                <motion.div key={t.id} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
+                  <Card className="border-none shadow-sm rounded-2xl overflow-hidden bg-white border-l-4 border-blue-500">
+                    <div className="p-6 flex items-center justify-between">
+                      <div className="flex items-start gap-4">
+                        <div className="w-12 h-12 rounded-2xl bg-blue-50 flex items-center justify-center shrink-0">
+                          <Clock className="w-6 h-6 text-blue-600" />
+                        </div>
+                        <div>
+                          <h3 className="font-bold text-slate-900">{t.itemName}</h3>
+                          <p className="text-sm text-slate-500">Searching for a volunteer to deliver your request.</p>
+                        </div>
                       </div>
-                      <div>
-                        <h3 className="font-bold text-slate-900">{t.itemName}</h3>
-                        <p className="text-sm text-slate-500">Your request is live. A volunteer will accept the delivery shortly.</p>
-                      </div>
+                      <Badge className="bg-blue-100 text-blue-700 border-none">Searching Volunteer</Badge>
                     </div>
-                    <Badge className="bg-blue-100 text-blue-700 border-none">Searching Volunteer</Badge>
-                  </div>
-                </Card>
+                  </Card>
+                </motion.div>
               ))}
             </div>
           </section>
         )}
 
-        {/* Active Transit Tracking for All Involved Parties */}
+        {/* Active Transit Tracking */}
         <section className="mb-10">
           <h2 className="text-xl font-bold text-slate-900 mb-4 flex items-center gap-2">
             <Truck className="w-5 h-5 text-emerald-600" />
-            Live Transit Tracking ({activeTransit.length})
+            Active Transit & Tracking ({activeTransit.length})
           </h2>
           <div className="grid gap-4">
             {activeTransit.length === 0 ? (
@@ -214,16 +222,15 @@ const Dashboard = () => {
             ) : (
               activeTransit.map((t) => (
                 <motion.div key={t.id} initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }}>
-                  <Card className="border-none shadow-md rounded-3xl overflow-hidden bg-white">
+                  <Card className="border-none shadow-sm rounded-2xl overflow-hidden">
                     <div className="p-6 flex flex-col md:flex-row md:items-center justify-between gap-6">
                       <div className="flex items-start gap-4">
-                        <div className="w-14 h-14 rounded-2xl bg-emerald-50 flex items-center justify-center shrink-0 relative">
-                          <Truck className="w-7 h-7 text-emerald-600" />
-                          <div className="absolute -top-1 -right-1 w-4 h-4 bg-emerald-500 rounded-full border-2 border-white animate-ping" />
+                        <div className="w-12 h-12 rounded-2xl bg-emerald-50 flex items-center justify-center shrink-0">
+                          <Truck className="w-6 h-6 text-emerald-600" />
                         </div>
                         <div>
                           <div className="flex items-center gap-2 mb-1">
-                            <h3 className="font-bold text-lg text-slate-900">{t.itemName}</h3>
+                            <h3 className="font-bold text-slate-900">{t.itemName}</h3>
                             <Badge className="bg-emerald-100 text-emerald-700 border-none">In Transit</Badge>
                           </div>
                           <div className="flex flex-col gap-1">
@@ -241,38 +248,21 @@ const Dashboard = () => {
                           <Navigation className="w-4 h-4 mr-2" /> View Route
                         </Button>
                         {(user.role === 'Volunteer' || user.role === 'Admin') && (
-                          <Button onClick={() => updateTransactionStatus(t.id, t.itemId, 'Delivered')} className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold shadow-lg shadow-emerald-100">
+                          <Button onClick={() => updateTransactionStatus(t.id, t.itemId, 'Delivered')} className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold">
                             <CheckCircle2 className="w-4 h-4 mr-2" /> Mark Delivered
                           </Button>
                         )}
                       </div>
                     </div>
-                    <div className="px-6 pb-8">
-                      <div className="relative h-2 w-full bg-slate-100 rounded-full overflow-hidden">
-                        <motion.div 
-                          initial={{ width: "0%" }}
-                          animate={{ width: "75%" }}
-                          transition={{ duration: 2, ease: "easeOut" }}
-                          className="h-full bg-emerald-500" 
-                        />
+                    <div className="px-6 pb-6">
+                      <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
+                        <div className="h-full bg-emerald-500 transition-all duration-1000" style={{ width: '75%' }} />
                       </div>
-                      <div className="flex justify-between mt-3 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                        <div className="flex flex-col items-center gap-1">
-                          <div className="w-2 h-2 rounded-full bg-emerald-500" />
-                          <span>Requested</span>
-                        </div>
-                        <div className="flex flex-col items-center gap-1">
-                          <div className="w-2 h-2 rounded-full bg-emerald-500" />
-                          <span>Accepted</span>
-                        </div>
-                        <div className="flex flex-col items-center gap-1">
-                          <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                          <span className="text-emerald-600">In Transit</span>
-                        </div>
-                        <div className="flex flex-col items-center gap-1">
-                          <div className="w-2 h-2 rounded-full bg-slate-200" />
-                          <span>Delivered</span>
-                        </div>
+                      <div className="flex justify-between mt-2 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                        <span>Requested</span>
+                        <span>Accepted</span>
+                        <span className="text-emerald-600">In Transit</span>
+                        <span>Delivered</span>
                       </div>
                     </div>
                   </Card>
