@@ -6,9 +6,9 @@ import { motion } from 'framer-motion';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
+import { Textarea } from '@/textarea';
 import { Label } from '@/components/ui/label';
-import { User, Save, ArrowLeft, Camera, Star, CheckCircle2 } from 'lucide-react';
+import { User, Save, ArrowLeft, Camera, Star, CheckCircle2, Phone } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import RoleInfo from '@/components/RoleInfo';
 
@@ -20,6 +20,7 @@ const Profile = () => {
   const [formData, setFormData] = useState({
     full_name: user?.name || '',
     bio: user?.bio || '',
+    phone: user?.phone || '',
     avatar_url: user?.avatar_url || ''
   });
 
@@ -28,6 +29,7 @@ const Profile = () => {
       setFormData({
         full_name: user.name || '',
         bio: user.bio || '',
+        phone: user.phone || '',
         avatar_url: user.avatar_url || ''
       });
     }
@@ -53,6 +55,7 @@ const Profile = () => {
       await updateProfile({
         full_name: formData.full_name,
         bio: formData.bio,
+        phone: formData.phone,
         avatar_url: formData.avatar_url
       });
     } finally {
@@ -127,15 +130,31 @@ const Profile = () => {
             </CardHeader>
             <CardContent>
               <form onSubmit={handleSave} className="space-y-6">
-                <div className="space-y-2">
-                  <Label htmlFor="full_name">Full Name</Label>
-                  <Input 
-                    id="full_name"
-                    value={formData.full_name}
-                    onChange={e => setFormData({...formData, full_name: e.target.value})}
-                    className="rounded-xl border-slate-100"
-                    placeholder="Your full name"
-                  />
+                <div className="grid md:grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <Label htmlFor="full_name">Full Name</Label>
+                    <Input 
+                      id="full_name"
+                      value={formData.full_name}
+                      onChange={e => setFormData({...formData, full_name: e.target.value})}
+                      className="rounded-xl border-slate-100"
+                      placeholder="Your full name"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="phone">Contact Number</Label>
+                    <div className="relative">
+                      <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                      <Input 
+                        id="phone"
+                        value={formData.phone}
+                        onChange={e => setFormData({...formData, phone: e.target.value})}
+                        className="rounded-xl border-slate-100 pl-10"
+                        placeholder="+91 98765 43210"
+                      />
+                    </div>
+                  </div>
                 </div>
 
                 <div className="space-y-2">

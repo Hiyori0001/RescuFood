@@ -12,8 +12,9 @@ export interface UserProfile {
   name: string;
   role: UserRole;
   bio?: string;
+  phone?: string;
   avatar_url?: string;
-  location?: string; // Kept in interface for UI, but not fetched from DB
+  location?: string;
 }
 
 export interface FoodItem {
@@ -64,7 +65,7 @@ interface AppContextType extends AppState {
   requestFood: (item: FoodItem) => Promise<void>;
   claimDelivery: (transactionId: string) => Promise<void>;
   updateTransactionStatus: (transactionId: string, itemId: string, newStatus: string) => Promise<void>;
-  updateProfile: (updates: { full_name?: string; bio?: string; avatar_url?: string }) => Promise<void>;
+  updateProfile: (updates: { full_name?: string; bio?: string; avatar_url?: string; phone?: string }) => Promise<void>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
   refreshData: () => Promise<void>;
@@ -86,7 +87,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const fetchTransactions = useCallback(async (userId: string, role?: UserRole) => {
     try {
-      // We join with inventory to get the location, as profiles doesn't have a location column
       let query = supabase
         .from('transactions')
         .select(`
@@ -174,6 +174,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           name: data.full_name || 'User',
           role: data.role as UserRole,
           bio: data.bio,
+          phone: data.phone,
           avatar_url: data.avatar_url
         };
         setUser(profile);
@@ -327,11 +328,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     refreshData();
   };
 
-  const updateProfile = async (updates: { full_name?: string; bio?: string; avatar_url?: string }) => {
+  const updateProfile = async (updates: { full_name?: string; bio?: string; avatar_url?: string; phone?: string }) => {
     if (!session?.user) return;
     const { error } = await supabase.from('profiles').update(updates).eq('id', session.user.id);
-    if (error) showError('Failed to update profile');
-    else {
+    if (error) {
+      console.error("[AppContext] Update profile error:", error);
+      showError('Failed to update profile: ' + error.message);
+    } else {
       showSuccess('Profile updated!');
       await fetchProfile(session.user.id);
     }
