@@ -6,7 +6,7 @@ import { motion } from 'framer-motion';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Truck, CheckCircle2, Clock, MapPin, Star, User, Navigation, Settings, ExternalLink, Loader2, RefreshCw, ArrowUpRight, History } from 'lucide-react';
+import { Truck, CheckCircle2, Clock, MapPin, Star, User, Navigation, Settings, ExternalLink, Loader2, RefreshCw, ArrowUpRight, AlertCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Link, Navigate } from 'react-router-dom';
 import RoleInfo from '@/components/RoleInfo';
@@ -26,17 +26,20 @@ const Dashboard = () => {
   if (!session) return <Navigate to="/auth" replace />;
   if (!user) return null;
 
+  // Volunteers see pending requests as "Available Deliveries"
   const availableDeliveries = transactions.filter(t => t.status === 'Pending' && user.role === 'Volunteer');
   
+  // NGOs see their pending requests
   const myPendingRequests = transactions.filter(t => t.status === 'Pending' && t.beneficiaryId === user.id);
 
+  // Active tasks (In Transit) for all parties involved
   const activeTransit = transactions.filter(t => 
     t.status === 'In Transit' && (t.providerId === user.id || t.beneficiaryId === user.id || t.volunteerId === user.id || user.role === 'Admin')
   );
 
-  const completedHistory = transactions.filter(t => 
+  const completedCount = transactions.filter(t => 
     t.status === 'Delivered' && (user.role === 'Admin' || t.providerId === user.id || t.beneficiaryId === user.id || t.volunteerId === user.id)
-  );
+  ).length;
 
   const openMap = (location?: string) => {
     if (!location) return;
@@ -86,7 +89,7 @@ const Dashboard = () => {
             <div className="text-right">
               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Completed</p>
               <div className="flex items-center gap-1 justify-end">
-                <span className="text-xl font-bold text-slate-900">{completedHistory.length}</span>
+                <span className="text-xl font-bold text-slate-900">{completedCount}</span>
                 <CheckCircle2 className="w-4 h-4 text-emerald-500" />
               </div>
             </div>
@@ -192,10 +195,6 @@ const Dashboard = () => {
                             <Badge className="bg-emerald-100 text-emerald-700 border-none">In Transit</Badge>
                           </div>
                           <div className="flex flex-col gap-1">
-                            <p className="text-xs text-slate-500 flex items-center gap-1">
-                              <User className="w-3 h-3 text-emerald-600" /> 
-                              Volunteer: <span className="font-bold text-slate-700">{t.volunteerName || 'Assigning...'}</span>
-                            </p>
                             <button onClick={() => openMap(t.providerLocation)} className="text-xs text-slate-500 flex items-center gap-1 hover:text-emerald-600 transition-colors">
                               <MapPin className="w-3 h-3" /> Pickup: {t.providerLocation || 'Not specified'}
                             </button>
@@ -229,40 +228,6 @@ const Dashboard = () => {
                     </div>
                   </Card>
                 </motion.div>
-              ))
-            )}
-          </div>
-        </section>
-
-        {/* Completed History */}
-        <section className="mb-10">
-          <h2 className="text-xl font-bold text-slate-900 mb-4 flex items-center gap-2">
-            <History className="w-5 h-5 text-slate-600" />
-            Completed History ({completedHistory.length})
-          </h2>
-          <div className="grid gap-4">
-            {completedHistory.length === 0 ? (
-              <div className="bg-white p-8 rounded-3xl text-center border border-slate-100">
-                <p className="text-slate-400 text-sm">No completed transactions yet.</p>
-              </div>
-            ) : (
-              completedHistory.slice(0, 5).map((t) => (
-                <Card key={t.id} className="border-none shadow-sm rounded-2xl overflow-hidden bg-white opacity-80">
-                  <div className="p-4 flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-xl bg-slate-50 flex items-center justify-center">
-                        <CheckCircle2 className="w-5 h-5 text-emerald-500" />
-                      </div>
-                      <div>
-                        <h3 className="font-bold text-slate-900 text-sm">{t.itemName}</h3>
-                        <p className="text-[10px] text-slate-500">
-                          {new Date(t.createdAt).toLocaleDateString()} • Delivered by {t.volunteerName || 'Unknown'}
-                        </p>
-                      </div>
-                    </div>
-                    <Badge variant="outline" className="text-[10px] border-emerald-100 text-emerald-600">Delivered</Badge>
-                  </div>
-                </Card>
               ))
             )}
           </div>

@@ -38,9 +38,7 @@ export interface Transaction {
   itemId: string;
   itemName: string;
   providerId: string;
-  providerName?: string;
   beneficiaryId: string;
-  beneficiaryName?: string;
   volunteerId?: string;
   volunteerName?: string;
   status: string;
@@ -95,15 +93,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         .select(`
           *,
           inventory:item_id (name),
-          provider:provider_id (location, full_name),
-          beneficiary:beneficiary_id (location, full_name),
-          volunteer:volunteer_id (full_name)
+          provider:provider_id (location),
+          beneficiary:beneficiary_id (location)
         `);
 
       if (role !== 'Admin') {
         if (role === 'Volunteer') {
+          // Volunteers see ALL pending requests OR tasks they are involved in
           query = query.or(`status.eq.Pending,volunteer_id.eq.${userId}`);
         } else {
+          // Providers and NGOs see transactions where they are involved
           query = query.or(`provider_id.eq.${userId},beneficiary_id.eq.${userId}`);
         }
       }
@@ -115,18 +114,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const inv = Array.isArray(t.inventory) ? t.inventory[0] : t.inventory;
         const prov = Array.isArray(t.provider) ? t.provider[0] : t.provider;
         const bene = Array.isArray(t.beneficiary) ? t.beneficiary[0] : t.beneficiary;
-        const vol = Array.isArray(t.volunteer) ? t.volunteer[0] : t.volunteer;
         
         return {
           id: t.id,
           itemId: t.item_id,
           itemName: inv?.name || 'Unknown Item',
           providerId: t.provider_id,
-          providerName: prov?.full_name,
           beneficiaryId: t.beneficiary_id,
-          beneficiaryName: bene?.full_name,
           volunteerId: t.volunteer_id,
-          volunteerName: vol?.full_name,
           status: t.status,
           createdAt: t.created_at,
           providerLocation: prov?.location,
@@ -250,6 +245,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const channel = supabase
       .channel('db-changes')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'transactions' }, (payload) => {
+        // Notify volunteers about new pending requests
         if (payload.eventType === 'INSERT' && payload.new.status === 'Pending' && user?.role === 'Volunteer') {
           showSuccess('New delivery request available! Check your dashboard.');
         }
