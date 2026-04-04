@@ -29,9 +29,6 @@ const Dashboard = () => {
   // Volunteers see pending requests as "Available Deliveries"
   const availableDeliveries = transactions.filter(t => t.status === 'Pending' && user.role === 'Volunteer');
   
-  // Providers see pending requests as "Incoming Requests" (Waiting for Volunteer)
-  const incomingRequests = transactions.filter(t => t.status === 'Pending' && (t.providerId === user.id || user.role === 'Admin'));
-
   // NGOs see their pending requests
   const myPendingRequests = transactions.filter(t => t.status === 'Pending' && t.beneficiaryId === user.id);
 
@@ -133,42 +130,6 @@ const Dashboard = () => {
                         <Button onClick={() => claimDelivery(t.id)} className="bg-blue-600 hover:bg-blue-700 text-white rounded-xl px-8 font-bold">
                           Accept Delivery
                         </Button>
-                      </div>
-                    </Card>
-                  </motion.div>
-                ))
-              )}
-            </div>
-          </section>
-        )}
-
-        {/* Provider: Incoming Requests */}
-        {(user.role === 'Provider' || user.role === 'Donor') && (
-          <section className="mb-10">
-            <h2 className="text-xl font-bold text-slate-900 mb-4 flex items-center gap-2">
-              <AlertCircle className="w-5 h-5 text-amber-600" />
-              Incoming Requests ({incomingRequests.length})
-            </h2>
-            <div className="grid gap-4">
-              {incomingRequests.length === 0 ? (
-                <div className="bg-white p-8 rounded-3xl text-center border border-slate-100">
-                  <p className="text-slate-400 text-sm">No pending requests for your food items.</p>
-                </div>
-              ) : (
-                incomingRequests.map((t) => (
-                  <motion.div key={t.id} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
-                    <Card className="border-none shadow-sm rounded-2xl overflow-hidden bg-white border-l-4 border-amber-500">
-                      <div className="p-6 flex items-center justify-between">
-                        <div className="flex items-start gap-4">
-                          <div className="w-12 h-12 rounded-2xl bg-amber-50 flex items-center justify-center shrink-0">
-                            <Clock className="w-6 h-6 text-amber-600" />
-                          </div>
-                          <div>
-                            <h3 className="font-bold text-slate-900">{t.itemName}</h3>
-                            <p className="text-sm text-slate-500">Requested and waiting for a volunteer to accept delivery.</p>
-                          </div>
-                        </div>
-                        <Badge className="bg-amber-100 text-amber-700 border-none">Waiting for Volunteer</Badge>
                       </div>
                     </Card>
                   </motion.div>
