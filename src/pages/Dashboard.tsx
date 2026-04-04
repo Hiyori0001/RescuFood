@@ -6,7 +6,7 @@ import { motion } from 'framer-motion';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Truck, CheckCircle2, Clock, MapPin, Star, User, Navigation, Settings, ExternalLink, Loader2, RefreshCw, ArrowUpRight, AlertCircle } from 'lucide-react';
+import { Truck, CheckCircle2, Clock, MapPin, Star, User, Navigation, Settings, ExternalLink, Loader2, RefreshCw, ArrowUpRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Link, Navigate } from 'react-router-dom';
 import RoleInfo from '@/components/RoleInfo';
@@ -26,11 +26,11 @@ const Dashboard = () => {
   if (!session) return <Navigate to="/auth" replace />;
   if (!user) return null;
 
-  // Volunteers see pending requests as "Available Deliveries"
-  const availableDeliveries = transactions.filter(t => t.status === 'Pending' && user.role === 'Volunteer');
+  // Volunteers see 'Approved' requests as "Available Deliveries"
+  const availableDeliveries = transactions.filter(t => t.status === 'Approved' && user.role === 'Volunteer');
   
   // NGOs see their pending requests
-  const myPendingRequests = transactions.filter(t => t.status === 'Pending' && t.beneficiaryId === user.id);
+  const myPendingRequests = transactions.filter(t => t.status === 'Approved' && t.beneficiaryId === user.id);
 
   // Active tasks (In Transit) for all parties involved
   const activeTransit = transactions.filter(t => 

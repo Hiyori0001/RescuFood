@@ -99,8 +99,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
       if (role !== 'Admin') {
         if (role === 'Volunteer') {
-          // Volunteers see ALL pending requests OR tasks they are involved in
-          query = query.or(`status.eq.Pending,volunteer_id.eq.${userId}`);
+          // Volunteers see ALL 'Approved' requests (waiting for volunteer) 
+          // OR tasks they are already involved in
+          query = query.or(`status.eq.Approved,volunteer_id.eq.${userId}`);
         } else {
           // Providers and NGOs see transactions where they are involved
           query = query.or(`provider_id.eq.${userId},beneficiary_id.eq.${userId}`);
@@ -245,8 +246,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const channel = supabase
       .channel('db-changes')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'transactions' }, (payload) => {
-        // Notify volunteers about new pending requests
-        if (payload.eventType === 'INSERT' && payload.new.status === 'Pending' && user?.role === 'Volunteer') {
+        // Notify volunteers about new approved requests
+        if (payload.eventType === 'INSERT' && payload.new.status === 'Approved' && user?.role === 'Volunteer') {
           showSuccess('New delivery request available! Check your dashboard.');
         }
         refreshData();
@@ -282,11 +283,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const requestFood = async (item: FoodItem) => {
     if (!session?.user) return;
+    // We use 'Approved' status because the database RLS policy allows 
+    // non-involved users (volunteers) to see transactions with status 'Approved'.
     const { error: transError } = await supabase.from('transactions').insert([{
       item_id: item.id,
       provider_id: item.providerId,
       beneficiary_id: session.user.id,
-      status: 'Pending'
+      status: 'Approved'
     }]);
     if (transError) {
       showError('Failed to create request');
