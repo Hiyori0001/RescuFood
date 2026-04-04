@@ -65,7 +65,7 @@ interface AppContextType extends AppState {
   requestFood: (item: FoodItem) => Promise<void>;
   claimDelivery: (transactionId: string) => Promise<void>;
   updateTransactionStatus: (transactionId: string, itemId: string, newStatus: string) => Promise<void>;
-  updateProfile: (updates: { full_name?: string; bio?: string; avatar_url?: string; phone?: string }) => Promise<void>;
+  updateProfile: (updates: { full_name?: string; bio?: string; avatar_url?: string; phone?: string; location?: string }) => Promise<void>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
   refreshData: () => Promise<void>;
@@ -175,7 +175,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           role: data.role as UserRole,
           bio: data.bio,
           phone: data.phone,
-          avatar_url: data.avatar_url
+          avatar_url: data.avatar_url,
+          location: data.location
         };
         setUser(profile);
         return profile;
@@ -328,7 +329,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     refreshData();
   };
 
-  const updateProfile = async (updates: { full_name?: string; bio?: string; avatar_url?: string; phone?: string }) => {
+  const updateProfile = async (updates: { full_name?: string; bio?: string; avatar_url?: string; phone?: string; location?: string }) => {
     if (!session?.user) return;
     const { error } = await supabase.from('profiles').update(updates).eq('id', session.user.id);
     if (error) {
