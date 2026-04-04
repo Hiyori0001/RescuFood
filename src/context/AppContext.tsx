@@ -88,8 +88,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const fetchTransactions = useCallback(async (userId: string, role?: UserRole) => {
     try {
-      console.log("[AppContext] Fetching transactions for:", userId, role);
-      
       let query = supabase
         .from('transactions')
         .select(`
@@ -99,25 +97,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           beneficiary:beneficiary_id (location)
         `);
 
-      // Apply role-based filtering
       if (role !== 'Admin') {
         if (role === 'Volunteer') {
-          // Volunteers see approved tasks or tasks they've claimed
-          query = query.or(`status.eq.Approved,volunteer_id.eq.${userId},status.eq.In Transit`);
+          // Volunteers see pending requests (available to claim) or tasks they've claimed
+          query = query.or(`status.eq.Pending,volunteer_id.eq.${userId},status.eq.In Transit`);
         } else {
-          // Providers and NGOs see transactions where they are either the provider or beneficiary
+          // Providers and NGOs see transactions where they are involved
           query = query.or(`provider_id.eq.${userId},beneficiary_id.eq.${userId}`);
         }
       }
 
       const { data, error } = await query.order('created_at', { ascending: false });
-      
-      if (error) {
-        console.error("[AppContext] Transaction fetch error:", error);
-        throw error;
-      }
+      if (error) throw error;
 
-      const mappedTransactions = (data || []).map(t => {
+      setTransactions((data || []).map(t => {
         const inv = Array.isArray(t.inventory) ? t.inventory[0] : t.inventory;
         const prov = Array.isArray(t.provider) ? t.provider[0] : t.provider;
         const bene = Array.isArray(t.beneficiary) ? t.beneficiary[0] : t.beneficiary;
@@ -134,12 +127,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           providerLocation: prov?.location,
           beneficiaryLocation: bene?.location
         };
-      });
-
-      console.log("[AppContext] Mapped transactions:", mappedTransactions.length);
-      setTransactions(mappedTransactions);
+      }));
     } catch (e) {
-      console.error("[AppContext] fetchTransactions failed:", e);
+      console.error("[AppContext] Fetch transactions error:", e);
     }
   }, []);
 
@@ -233,7 +223,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [session, fetchProfile, fetchInventory, fetchImpactMetrics, fetchTransactions]);
 
   useEffect(() => {
-    // Initial session check
     supabase.auth.getSession().then(({ data: { session: initialSession } }) => {
       setSession(initialSession);
       if (initialSession) {
@@ -242,7 +231,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setLoading(false);
     });
 
-    // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, currentSession) => {
       setSession(currentSession);
       if (currentSession) {
@@ -254,25 +242,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setLoading(false);
     });
 
-    // Real-time subscription for transactions and inventory
     const channel = supabase
       .channel('db-changes')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'transactions' },
-        () => {
-          console.log("[AppContext] Transaction change detected, refreshing...");
-          refreshData();
-        }
-      )
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'inventory' },
-        () => {
-          console.log("[AppContext] Inventory change detected, refreshing...");
-          fetchInventory();
-        }
-      )
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'transactions' }, () => refreshData())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'inventory' }, () => fetchInventory())
       .subscribe();
 
     return () => {
@@ -283,7 +256,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const addFoodItem = async (item: any) => {
     if (!session?.user) return;
-
     const { error } = await supabase.from('inventory').insert([{
       name: item.name,
       type: item.type,
@@ -298,44 +270,29 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       distance: Math.floor(Math.random() * 10) + 1,
       is_safety_verified: item.is_safety_verified || false
     }]);
-
-    if (error) {
-      showError('Failed to add item');
-      throw error;
-    }
+    if (error) throw error;
     fetchInventory();
   };
 
   const requestFood = async (item: FoodItem) => {
     if (!session?.user) return;
-
-    // 1. Create the transaction
     const { error: transError } = await supabase.from('transactions').insert([{
       item_id: item.id,
       provider_id: item.providerId,
       beneficiary_id: session.user.id,
       status: 'Pending'
     }]);
-
     if (transError) {
-      showError('Failed to create request: ' + transError.message);
+      showError('Failed to create request');
       return;
     }
-
-    // 2. Update the inventory status
-    const { error: invError } = await supabase.from('inventory').update({ status: 'Requested' }).eq('id', item.id);
-    
-    if (invError) {
-      console.error("[AppContext] Failed to update inventory status:", invError);
-    }
-
-    showSuccess('Request sent successfully!');
+    await supabase.from('inventory').update({ status: 'Requested' }).eq('id', item.id);
+    showSuccess('Request sent! Waiting for a volunteer to accept.');
     refreshData();
   };
 
   const claimDelivery = async (transactionId: string) => {
     if (!session?.user) return;
-
     const { error } = await supabase
       .from('transactions')
       .update({ 
@@ -343,37 +300,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         status: 'In Transit' 
       })
       .eq('id', transactionId);
-
     if (error) {
       showError('Failed to claim delivery');
       return;
     }
-
-    showSuccess('Delivery claimed! You are now in transit.');
+    showSuccess('Delivery accepted! You are now in transit.');
     refreshData();
   };
 
   const updateTransactionStatus = async (transactionId: string, itemId: string, newStatus: string) => {
-    // 1. Update transaction status
     const { error: transError } = await supabase.from('transactions').update({ status: newStatus }).eq('id', transactionId);
-    
     if (transError) {
-      showError('Failed to update status: ' + transError.message);
+      showError('Failed to update status');
       return;
     }
-
-    // 2. Map transaction status to inventory status
     let invStatus = 'Requested';
     if (newStatus === 'Delivered') invStatus = 'Delivered';
-    if (newStatus === 'Approved') invStatus = 'Allocated';
     if (newStatus === 'Cancelled') invStatus = 'Available';
-    
-    const { error: invError } = await supabase.from('inventory').update({ status: invStatus }).eq('id', itemId);
-    if (invError) {
-      console.error("[AppContext] Failed to update inventory status:", invError);
-    }
-
-    // 3. Update impact metrics if delivered
+    await supabase.from('inventory').update({ status: invStatus }).eq('id', itemId);
     if (newStatus === 'Delivered') {
       const { data: current } = await supabase.from('impact_metrics').select('*').maybeSingle();
       const update = {
@@ -385,7 +329,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       else await supabase.from('impact_metrics').insert([update]);
       fetchImpactMetrics();
     }
-
     showSuccess(`Status updated to ${newStatus}`);
     refreshData();
   };
@@ -411,25 +354,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const signOut = async () => {
-    try {
-      setLoading(true);
-      await supabase.auth.signOut();
-      setUser(null);
-      setSession(null);
-      setTransactions([]);
-      localStorage.removeItem('pending_role');
-      showSuccess('Signed out successfully');
-    } catch (e) {
-      console.error("[AppContext] Sign out error:", e);
-    } finally {
-      setLoading(false);
-    }
+    setLoading(true);
+    await supabase.auth.signOut();
+    setUser(null);
+    setSession(null);
+    setTransactions([]);
+    setLoading(false);
   };
 
   const refreshProfile = async () => {
-    if (session?.user.id) {
-      await fetchProfile(session.user.id);
-    }
+    if (session?.user.id) await fetchProfile(session.user.id);
   };
 
   return (
