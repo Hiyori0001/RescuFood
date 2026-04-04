@@ -244,7 +244,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const channel = supabase
       .channel('db-changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'transactions' }, () => refreshData())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'transactions' }, (payload) => {
+        // Notify volunteers about new pending requests
+        if (payload.eventType === 'INSERT' && payload.new.status === 'Pending' && user?.role === 'Volunteer') {
+          showSuccess('New delivery request available! Check your dashboard.');
+        }
+        refreshData();
+      })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'inventory' }, () => fetchInventory())
       .subscribe();
 
@@ -252,7 +258,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       subscription.unsubscribe();
       supabase.removeChannel(channel);
     };
-  }, [refreshData, fetchInventory]);
+  }, [refreshData, fetchInventory, user?.role]);
 
   const addFoodItem = async (item: any) => {
     if (!session?.user) return;
