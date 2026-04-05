@@ -8,20 +8,24 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Plus, Clock, AlertTriangle, ChefHat, ShieldCheck, CheckCircle2, ListFilter, Heart } from 'lucide-react';
+import { Plus, Clock, AlertTriangle, ChefHat, ShieldCheck, CheckCircle2, ListFilter, Heart, XCircle, Loader2 } from 'lucide-react';
 import { showSuccess } from '@/utils/toast';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { cn } from '@/lib/utils';
 
 const Inventory = () => {
-  const { user, inventory, addFoodItem } = useApp();
+  const { user, inventory, addFoodItem, updateItemStatus, isProcessing } = useApp();
   const [isAdding, setIsAdding] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   
-  // NGOs and Admins see 'All' by default, others see 'Mine'
+  // NGOs only see 'All'. Admins and Providers can toggle.
+  const isNGO = user?.role === 'NGO';
+  const isProvider = user?.role === 'Provider' || user?.role === 'Donor';
+  const isAdmin = user?.role === 'Admin';
+
   const [viewMode, setViewMode] = useState<'Mine' | 'All'>(
-    (user?.role === 'Admin' || user?.role === 'NGO') ? 'All' : 'Mine'
+    (isAdmin || isNGO) ? 'All' : 'Mine'
   );
   
   const [formData, setFormData] = useState({
@@ -80,15 +84,16 @@ const Inventory = () => {
         <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
           <div>
             <h1 className="text-3xl font-bold text-slate-900">
-              {viewMode === 'All' ? 'Global Inventory' : isDonor ? 'My Donations' : 'My Inventory'}
+              {isNGO ? 'Global Inventory' : viewMode === 'All' ? 'Global Inventory' : isDonor ? 'My Donations' : 'My Inventory'}
             </h1>
             <p className="text-slate-500">
-              {viewMode === 'All' ? 'Monitoring all food listings across the platform' : isDonor ? 'Manage your food donations' : 'Manage your surplus food listings'}
+              {isNGO ? 'Monitoring all food listings across the platform' : viewMode === 'All' ? 'Monitoring all food listings across the platform' : isDonor ? 'Manage your food donations' : 'Manage your surplus food listings'}
             </p>
           </div>
           
           <div className="flex items-center gap-3">
-            {(user?.role === 'Admin' || user?.role === 'NGO') && (
+            {/* Only show toggle for Admin and Provider/Donor */}
+            {(isAdmin || isProvider) && (
               <div className="flex bg-white p-1 rounded-xl shadow-sm border border-slate-100">
                 <button
                   onClick={() => setViewMode('Mine')}
@@ -111,7 +116,7 @@ const Inventory = () => {
               </div>
             )}
             
-            {(user?.role === 'Provider' || user?.role === 'Admin' || user?.role === 'Donor') && (
+            {(isProvider || isAdmin) && (
               <Button 
                 onClick={() => setIsAdding(!isAdding)}
                 className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl"
@@ -244,53 +249,80 @@ const Inventory = () => {
               )}
             </div>
           ) : (
-            displayInventory.map((item) => (
-              <Card key={item.id} className="border-none shadow-sm rounded-2xl overflow-hidden">
-                <div className="flex flex-col md:flex-row">
-                  <div className="p-6 flex-1">
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center gap-2">
-                        <h3 className="text-xl font-bold text-slate-900">{item.name}</h3>
-                        {item.isSafetyVerified && (
-                          <Badge className="bg-emerald-100 text-emerald-700 border-none flex items-center gap-1">
-                            <CheckCircle2 className="w-3 h-3" /> Verified
+            displayInventory.map((item) => {
+              const isPastExpiry = new Date(item.expiryDate).getTime() < Date.now();
+              
+              return (
+                <Card key={item.id} className={cn(
+                  "border-none shadow-sm rounded-2xl overflow-hidden",
+                  item.status === 'Expired' && "opacity-60 grayscale"
+                )}>
+                  <div className="flex flex-col md:flex-row">
+                    <div className="p-6 flex-1">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <h3 className="text-xl font-bold text-slate-900">{item.name}</h3>
+                          {item.isSafetyVerified && (
+                            <Badge className="bg-emerald-100 text-emerald-700 border-none flex items-center gap-1">
+                              <CheckCircle2 className="w-3 h-3" /> Verified
+                            </Badge>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {viewMode === 'All' && (
+                            <span className="text-[10px] font-bold text-slate-400 uppercase bg-slate-100 px-2 py-1 rounded">
+                              By: {item.providerName}
+                            </span>
+                          )}
+                          <Badge variant={item.status === 'Available' ? 'outline' : 'secondary'} className={cn(
+                            "rounded-full",
+                            item.status === 'Expired' && "bg-rose-100 text-rose-700 border-none"
+                          )}>
+                            {item.status}
                           </Badge>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-2">
-                        {viewMode === 'All' && (
-                          <span className="text-[10px] font-bold text-slate-400 uppercase bg-slate-100 px-2 py-1 rounded">
-                            By: {item.providerName}
-                          </span>
-                        )}
-                        <Badge variant={item.status === 'Available' ? 'outline' : 'secondary'} className="rounded-full">
-                          {item.status}
-                        </Badge>
-                      </div>
-                    </div>
-                    <div className="flex flex-wrap gap-4 text-sm text-slate-500">
-                      <span className="flex items-center gap-1"><Clock className="w-4 h-4" /> Expires: {new Date(item.expiryDate).toLocaleString()}</span>
-                      <span className="font-medium text-emerald-600">{item.quantity}</span>
-                      <span className="bg-slate-100 px-2 py-0.5 rounded text-xs font-bold uppercase tracking-wider">{item.pricing}</span>
-                    </div>
-
-                    {item.isNearExpiry && item.type === 'Raw' && (
-                      <div className="mt-4 p-4 bg-amber-50 border border-amber-100 rounded-xl flex items-start gap-3">
-                        <AlertTriangle className="w-5 h-5 text-amber-600 mt-0.5" />
-                        <div>
-                          <p className="text-sm font-bold text-amber-800">Near Expiry Alert!</p>
-                          <p className="text-xs text-amber-700 mb-2">This item expires in less than 48 hours. Consider converting it to a cooked dish.</p>
-                          <div className="flex items-center gap-2 text-xs font-semibold text-emerald-700 bg-white w-fit px-3 py-1.5 rounded-lg shadow-sm">
-                            <ChefHat className="w-3 h-3" />
-                            Recommended: {getRecipeRecommendation(item.name)}
-                          </div>
                         </div>
                       </div>
-                    )}
+                      <div className="flex flex-wrap gap-4 text-sm text-slate-500">
+                        <span className="flex items-center gap-1"><Clock className="w-4 h-4" /> Expires: {new Date(item.expiryDate).toLocaleString()}</span>
+                        <span className="font-medium text-emerald-600">{item.quantity}</span>
+                        <span className="bg-slate-100 px-2 py-0.5 rounded text-xs font-bold uppercase tracking-wider">{item.pricing}</span>
+                      </div>
+
+                      {/* Near Expiry Alert - Visible to Admin and NGO too */}
+                      {item.isNearExpiry && item.status === 'Available' && (
+                        <div className="mt-4 p-4 bg-amber-50 border border-amber-100 rounded-xl flex items-start justify-between gap-3">
+                          <div className="flex items-start gap-3">
+                            <AlertTriangle className="w-5 h-5 text-amber-600 mt-0.5" />
+                            <div>
+                              <p className="text-sm font-bold text-amber-800">Near Expiry Alert!</p>
+                              <p className="text-xs text-amber-700 mb-2">This item expires soon. {item.type === 'Raw' ? 'Consider converting it to a cooked dish.' : 'Prioritize distribution.'}</p>
+                              {item.type === 'Raw' && (
+                                <div className="flex items-center gap-2 text-xs font-semibold text-emerald-700 bg-white w-fit px-3 py-1.5 rounded-lg shadow-sm">
+                                  <ChefHat className="w-3 h-3" />
+                                  Recommended: {getRecipeRecommendation(item.name)}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                          
+                          {/* Mark as Expired Button for Admin/NGO */}
+                          {(isAdmin || isNGO) && isPastExpiry && item.status !== 'Expired' && (
+                            <Button 
+                              onClick={() => updateItemStatus(item.id, 'Expired')}
+                              disabled={isProcessing}
+                              variant="outline" 
+                              className="rounded-xl border-rose-200 text-rose-600 hover:bg-rose-50 h-9 px-4 text-xs font-bold shrink-0"
+                            >
+                              {isProcessing ? <Loader2 className="w-3 h-3 animate-spin" /> : <><XCircle className="w-3 h-3 mr-2" /> Mark Expired</>}
+                            </Button>
+                          )}
+                        </div>
+                      )}
+                    </div>
                   </div>
-                </div>
-              </Card>
-            ))
+                </Card>
+              );
+            })
           )}
         </div>
       </div>

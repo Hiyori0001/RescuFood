@@ -26,7 +26,7 @@ export interface FoodItem {
   providerId: string;
   providerName: string;
   location: string;
-  status: 'Available' | 'Requested' | 'Allocated' | 'Delivered';
+  status: 'Available' | 'Requested' | 'Allocated' | 'Delivered' | 'Expired';
   pricing: 'Donated' | 'Base-price' | 'Discounted';
   price?: number;
   distance: number;
@@ -66,6 +66,7 @@ interface AppContextType extends AppState {
   requestFood: (item: FoodItem) => Promise<void>;
   claimDelivery: (transactionId: string) => Promise<void>;
   updateTransactionStatus: (transactionId: string, itemId: string, newStatus: string) => Promise<void>;
+  updateItemStatus: (itemId: string, newStatus: FoodItem['status']) => Promise<void>;
   updateProfile: (updates: { full_name?: string; bio?: string; avatar_url?: string; phone?: string; location?: string }) => Promise<void>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
@@ -99,7 +100,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
       if (role !== 'Admin') {
         if (role === 'Volunteer') {
-          // Volunteers see Approved (to claim) or their own active tasks
           query = query.or(`status.eq.Approved,volunteer_id.eq.${userId}`);
         } else {
           query = query.or(`provider_id.eq.${userId},beneficiary_id.eq.${userId}`);
@@ -149,7 +149,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         providerId: item.provider_id,
         providerName: item.provider_name,
         location: item.location,
-        status: item.status,
+        status: item.status as FoodItem['status'],
         pricing: item.pricing,
         price: item.price,
         distance: item.distance,
@@ -282,7 +282,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const requestFood = async (item: FoodItem) => {
     if (!session?.user || isProcessing) return;
     
-    // Check if already requested
     const alreadyRequested = transactions.some(t => t.itemId === item.id && t.status !== 'Cancelled');
     if (alreadyRequested) {
       showError('This item is already being processed.');
@@ -295,7 +294,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         item_id: item.id,
         provider_id: item.providerId,
         beneficiary_id: session.user.id,
-        status: 'Pending Approval' // Admin must approve first
+        status: 'Pending Approval'
       }]);
       
       if (transError) throw transError;
@@ -335,7 +334,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (isProcessing) return;
     setIsProcessing(true);
     try {
-      // If volunteer marks delivered, it goes to 'Pending Confirmation' for Admin
       let finalStatus = newStatus;
       if (newStatus === 'Delivered' && user?.role === 'Volunteer') {
         finalStatus = 'Pending Confirmation';
@@ -366,6 +364,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       await refreshData();
     } catch (e) {
       showError('Failed to update status');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const updateItemStatus = async (itemId: string, newStatus: FoodItem['status']) => {
+    if (isProcessing) return;
+    setIsProcessing(true);
+    try {
+      const { error } = await supabase.from('inventory').update({ status: newStatus }).eq('id', itemId);
+      if (error) throw error;
+      showSuccess(`Item marked as ${newStatus}`);
+      await fetchInventory();
+    } catch (e) {
+      showError('Failed to update item status');
     } finally {
       setIsProcessing(false);
     }
@@ -406,7 +419,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   return (
     <AppContext.Provider value={{ 
       user, session, inventory, transactions, impactMetrics, loading, isProcessing,
-      addFoodItem, requestFood, claimDelivery, updateTransactionStatus, updateProfile, signOut, refreshProfile, refreshData
+      addFoodItem, requestFood, claimDelivery, updateTransactionStatus, updateItemStatus, updateProfile, signOut, refreshProfile, refreshData
     }}>
       {children}
     </AppContext.Provider>
