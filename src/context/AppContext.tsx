@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { showError, showSuccess } from '@/utils/toast';
 import { Session } from '@supabase/supabase-js';
@@ -87,6 +87,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     wasteReduced: 0,
     communitiesServed: 0,
   });
+
+  // Use a ref to track the current session for the real-time listeners
+  // to avoid dependency loops in useEffect
+  const sessionRef = useRef<Session | null>(null);
+  const userRef = useRef<UserProfile | null>(null);
 
   const fetchTransactions = useCallback(async (userId: string, role?: UserRole) => {
     try {
@@ -182,6 +187,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           location: data.location
         };
         setUser(profile);
+        userRef.current = profile;
         return profile;
       }
     } catch (e) {
@@ -206,12 +212,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, []);
 
   const refreshData = useCallback(async () => {
-    if (session?.user.id) {
-      const profile = await fetchProfile(session.user.id);
+    const currentSession = sessionRef.current;
+    if (currentSession?.user.id) {
+      const profile = await fetchProfile(currentSession.user.id);
       await Promise.all([
         fetchInventory(),
         fetchImpactMetrics(),
-        profile ? fetchTransactions(session.user.id, profile.role) : Promise.resolve()
+        profile ? fetchTransactions(currentSession.user.id, profile.role) : Promise.resolve()
       ]);
     } else {
       await Promise.all([
@@ -219,23 +226,37 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         fetchImpactMetrics()
       ]);
     }
-  }, [session, fetchProfile, fetchInventory, fetchImpactMetrics, fetchTransactions]);
+  }, [fetchProfile, fetchInventory, fetchImpactMetrics, fetchTransactions]);
 
+  // Setup listeners once on mount
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session: initialSession } }) => {
+    let isMounted = true;
+
+    const init = async () => {
+      const { data: { session: initialSession } } = await supabase.auth.getSession();
+      if (!isMounted) return;
+      
       setSession(initialSession);
+      sessionRef.current = initialSession;
+      
       if (initialSession) {
-        refreshData();
+        await refreshData();
       }
       setLoading(false);
-    });
+    };
+
+    init();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, currentSession) => {
+      if (!isMounted) return;
+      
       setSession(currentSession);
+      sessionRef.current = currentSession;
+      
       if (event === 'SIGNED_OUT') {
         setUser(null);
+        userRef.current = null;
         setTransactions([]);
-        setSession(null);
       } else if (currentSession) {
         refreshData();
       }
@@ -244,15 +265,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const channel = supabase
       .channel('db-changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'transactions' }, () => refreshData())
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'inventory' }, () => fetchInventory())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'transactions' }, () => {
+        if (isMounted) refreshData();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'inventory' }, () => {
+        if (isMounted) fetchInventory();
+      })
       .subscribe();
 
     return () => {
+      isMounted = false;
       subscription.unsubscribe();
       supabase.removeChannel(channel);
     };
-  }, [refreshData, fetchInventory]);
+  }, []); // Empty dependency array is key to stopping the loop
 
   const addFoodItem = async (item: any) => {
     if (!session?.user || isProcessing) return;
@@ -282,6 +308,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const requestFood = async (item: FoodItem) => {
     if (!session?.user || isProcessing) return;
     
+    // Immediate local check to prevent double-clicks
     const alreadyRequested = transactions.some(t => t.itemId === item.id && t.status !== 'Cancelled');
     if (alreadyRequested) {
       showError('This item is already being processed.');
@@ -404,7 +431,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     try {
       await supabase.auth.signOut();
       setUser(null);
+      userRef.current = null;
       setSession(null);
+      sessionRef.current = null;
       setTransactions([]);
       localStorage.removeItem('pending_role');
     } finally {
