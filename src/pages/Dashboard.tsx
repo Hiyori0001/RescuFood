@@ -6,13 +6,13 @@ import { motion } from 'framer-motion';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Truck, CheckCircle2, Clock, MapPin, Star, User, Navigation, Settings, RefreshCw, ArrowUpRight, Loader2 } from 'lucide-react';
+import { Truck, CheckCircle2, Clock, MapPin, Star, User, Navigation, Settings, RefreshCw, ArrowUpRight, Loader2, ShieldAlert } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Link, Navigate } from 'react-router-dom';
 import RoleInfo from '@/components/RoleInfo';
 
 const Dashboard = () => {
-  const { user, session, transactions, updateTransactionStatus, claimDelivery, loading, refreshData } = useApp();
+  const { user, session, transactions, updateTransactionStatus, claimDelivery, loading, refreshData, isProcessing } = useApp();
 
   if (loading) {
     return (
@@ -30,7 +30,9 @@ const Dashboard = () => {
   const availableDeliveries = transactions.filter(t => t.status === 'Approved' && user.role === 'Volunteer');
   
   // NGOs see their pending requests
-  const myPendingRequests = transactions.filter(t => t.status === 'Approved' && t.beneficiaryId === user.id);
+  const myPendingRequests = transactions.filter(t => 
+    ['Pending Approval', 'Approved', 'Pending Confirmation'].includes(t.status) && t.beneficiaryId === user.id
+  );
 
   // Active tasks (In Transit) for all parties involved
   const activeTransit = transactions.filter(t => 
@@ -118,8 +120,12 @@ const Dashboard = () => {
                             </p>
                           </div>
                         </div>
-                        <Button onClick={() => claimDelivery(t.id)} className="bg-blue-600 hover:bg-blue-700 text-white rounded-xl px-8 font-bold">
-                          Accept Delivery
+                        <Button 
+                          onClick={() => claimDelivery(t.id)} 
+                          disabled={isProcessing}
+                          className="bg-blue-600 hover:bg-blue-700 text-white rounded-xl px-8 font-bold"
+                        >
+                          {isProcessing ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Accept Delivery'}
                         </Button>
                       </div>
                     </Card>
@@ -144,14 +150,23 @@ const Dashboard = () => {
                     <div className="p-6 flex items-center justify-between">
                       <div className="flex items-start gap-4">
                         <div className="w-12 h-12 rounded-2xl bg-blue-50 flex items-center justify-center shrink-0">
-                          <Clock className="w-6 h-6 text-blue-600" />
+                          {t.status === 'Pending Approval' ? <ShieldAlert className="w-6 h-6 text-amber-600" /> : <Clock className="w-6 h-6 text-blue-600" />}
                         </div>
                         <div>
                           <h3 className="font-bold text-slate-900">{t.itemName}</h3>
-                          <p className="text-sm text-slate-500">Searching for a volunteer to deliver your request.</p>
+                          <p className="text-sm text-slate-500">
+                            {t.status === 'Pending Approval' ? 'Waiting for Admin to approve your request.' : 
+                             t.status === 'Pending Confirmation' ? 'Delivered! Waiting for Admin to confirm.' :
+                             'Searching for a volunteer to deliver your request.'}
+                          </p>
                         </div>
                       </div>
-                      <Badge className="bg-blue-100 text-blue-700 border-none">Searching Volunteer</Badge>
+                      <Badge className={cn(
+                        "border-none",
+                        t.status === 'Pending Approval' ? "bg-amber-100 text-amber-700" : "bg-blue-100 text-blue-700"
+                      )}>
+                        {t.status}
+                      </Badge>
                     </div>
                   </Card>
                 </motion.div>
@@ -200,8 +215,12 @@ const Dashboard = () => {
                           <Navigation className="w-4 h-4 mr-2" /> View Pickup
                         </Button>
                         {(user.role === 'Volunteer' || user.role === 'Admin') && (
-                          <Button onClick={() => updateTransactionStatus(t.id, t.itemId, 'Delivered')} className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold">
-                            <CheckCircle2 className="w-4 h-4 mr-2" /> Mark Delivered
+                          <Button 
+                            onClick={() => updateTransactionStatus(t.id, t.itemId, 'Delivered')} 
+                            disabled={isProcessing}
+                            className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold"
+                          >
+                            {isProcessing ? <Loader2 className="w-5 h-5 animate-spin" /> : <><CheckCircle2 className="w-4 h-4 mr-2" /> Mark Delivered</>}
                           </Button>
                         )}
                       </div>

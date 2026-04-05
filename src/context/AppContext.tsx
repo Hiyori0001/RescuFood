@@ -58,6 +58,7 @@ interface AppState {
     communitiesServed: number;
   };
   loading: boolean;
+  isProcessing: boolean;
 }
 
 interface AppContextType extends AppState {
@@ -79,6 +80,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [inventory, setInventory] = useState<FoodItem[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isProcessing, setIsProcessing] = useState(false);
   const [impactMetrics, setImpactMetrics] = useState({
     mealsSaved: 0,
     wasteReduced: 0,
@@ -97,6 +99,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
       if (role !== 'Admin') {
         if (role === 'Volunteer') {
+          // Volunteers see Approved (to claim) or their own active tasks
           query = query.or(`status.eq.Approved,volunteer_id.eq.${userId}`);
         } else {
           query = query.or(`provider_id.eq.${userId},beneficiary_id.eq.${userId}`);
@@ -229,11 +232,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, currentSession) => {
       setSession(currentSession);
-      if (currentSession) {
-        refreshData();
-      } else {
+      if (event === 'SIGNED_OUT') {
         setUser(null);
         setTransactions([]);
+        setSession(null);
+      } else if (currentSession) {
+        refreshData();
       }
       setLoading(false);
     });
@@ -251,103 +255,148 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [refreshData, fetchInventory]);
 
   const addFoodItem = async (item: any) => {
-    if (!session?.user) return;
-    const { error } = await supabase.from('inventory').insert([{
-      name: item.name,
-      type: item.type,
-      quantity: item.quantity,
-      expiry_date: item.expiryDate,
-      pricing: item.pricing,
-      price: item.price || 0,
-      location: item.location || 'Unknown Location',
-      provider_id: session.user.id,
-      provider_name: user?.name || 'Anonymous',
-      status: 'Available',
-      distance: Math.floor(Math.random() * 10) + 1,
-      is_safety_verified: item.is_safety_verified || false
-    }]);
-    if (error) throw error;
-    fetchInventory();
+    if (!session?.user || isProcessing) return;
+    setIsProcessing(true);
+    try {
+      const { error } = await supabase.from('inventory').insert([{
+        name: item.name,
+        type: item.type,
+        quantity: item.quantity,
+        expiry_date: item.expiryDate,
+        pricing: item.pricing,
+        price: item.price || 0,
+        location: item.location || 'Unknown Location',
+        provider_id: session.user.id,
+        provider_name: user?.name || 'Anonymous',
+        status: 'Available',
+        distance: Math.floor(Math.random() * 10) + 1,
+        is_safety_verified: item.is_safety_verified || false
+      }]);
+      if (error) throw error;
+      await fetchInventory();
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   const requestFood = async (item: FoodItem) => {
-    if (!session?.user) return;
-    const { error: transError } = await supabase.from('transactions').insert([{
-      item_id: item.id,
-      provider_id: item.providerId,
-      beneficiary_id: session.user.id,
-      status: 'Approved'
-    }]);
-    if (transError) {
-      showError('Failed to create request');
+    if (!session?.user || isProcessing) return;
+    
+    // Check if already requested
+    const alreadyRequested = transactions.some(t => t.itemId === item.id && t.status !== 'Cancelled');
+    if (alreadyRequested) {
+      showError('This item is already being processed.');
       return;
     }
-    await supabase.from('inventory').update({ status: 'Requested' }).eq('id', item.id);
-    showSuccess('Request sent! Waiting for a volunteer to accept.');
-    refreshData();
+
+    setIsProcessing(true);
+    try {
+      const { error: transError } = await supabase.from('transactions').insert([{
+        item_id: item.id,
+        provider_id: item.providerId,
+        beneficiary_id: session.user.id,
+        status: 'Pending Approval' // Admin must approve first
+      }]);
+      
+      if (transError) throw transError;
+
+      await supabase.from('inventory').update({ status: 'Requested' }).eq('id', item.id);
+      showSuccess('Request sent! Waiting for Admin approval.');
+      await refreshData();
+    } catch (e) {
+      showError('Failed to create request');
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   const claimDelivery = async (transactionId: string) => {
-    if (!session?.user) return;
-    const { error } = await supabase
-      .from('transactions')
-      .update({ 
-        volunteer_id: session.user.id,
-        status: 'In Transit' 
-      })
-      .eq('id', transactionId);
-    if (error) {
+    if (!session?.user || isProcessing) return;
+    setIsProcessing(true);
+    try {
+      const { error } = await supabase
+        .from('transactions')
+        .update({ 
+          volunteer_id: session.user.id,
+          status: 'In Transit' 
+        })
+        .eq('id', transactionId);
+      if (error) throw error;
+      showSuccess('Delivery accepted! You are now in transit.');
+      await refreshData();
+    } catch (e) {
       showError('Failed to claim delivery');
-      return;
+    } finally {
+      setIsProcessing(false);
     }
-    showSuccess('Delivery accepted! You are now in transit.');
-    refreshData();
   };
 
   const updateTransactionStatus = async (transactionId: string, itemId: string, newStatus: string) => {
-    const { error: transError } = await supabase.from('transactions').update({ status: newStatus }).eq('id', transactionId);
-    if (transError) {
+    if (isProcessing) return;
+    setIsProcessing(true);
+    try {
+      // If volunteer marks delivered, it goes to 'Pending Confirmation' for Admin
+      let finalStatus = newStatus;
+      if (newStatus === 'Delivered' && user?.role === 'Volunteer') {
+        finalStatus = 'Pending Confirmation';
+      }
+
+      const { error: transError } = await supabase.from('transactions').update({ status: finalStatus }).eq('id', transactionId);
+      if (transError) throw transError;
+
+      let invStatus = 'Requested';
+      if (finalStatus === 'Delivered') invStatus = 'Delivered';
+      if (finalStatus === 'Cancelled') invStatus = 'Available';
+      
+      await supabase.from('inventory').update({ status: invStatus }).eq('id', itemId);
+      
+      if (finalStatus === 'Delivered') {
+        const { data: current } = await supabase.from('impact_metrics').select('*').maybeSingle();
+        const update = {
+          meals_saved: (current?.meals_saved || 0) + 10,
+          waste_reduced: (current?.waste_reduced || 0) + 5,
+          communities_served: (current?.communities_served || 0) + 1,
+        };
+        if (current) await supabase.from('impact_metrics').update(update).eq('id', current.id);
+        else await supabase.from('impact_metrics').insert([update]);
+        await fetchImpactMetrics();
+      }
+      
+      showSuccess(`Status updated to ${finalStatus}`);
+      await refreshData();
+    } catch (e) {
       showError('Failed to update status');
-      return;
+    } finally {
+      setIsProcessing(false);
     }
-    let invStatus = 'Requested';
-    if (newStatus === 'Delivered') invStatus = 'Delivered';
-    if (newStatus === 'Cancelled') invStatus = 'Available';
-    await supabase.from('inventory').update({ status: invStatus }).eq('id', itemId);
-    if (newStatus === 'Delivered') {
-      const { data: current } = await supabase.from('impact_metrics').select('*').maybeSingle();
-      const update = {
-        meals_saved: (current?.meals_saved || 0) + 10,
-        waste_reduced: (current?.waste_reduced || 0) + 5,
-        communities_served: (current?.communities_served || 0) + 1,
-      };
-      if (current) await supabase.from('impact_metrics').update(update).eq('id', current.id);
-      else await supabase.from('impact_metrics').insert([update]);
-      fetchImpactMetrics();
-    }
-    showSuccess(`Status updated to ${newStatus}`);
-    refreshData();
   };
 
   const updateProfile = async (updates: { full_name?: string; bio?: string; avatar_url?: string; phone?: string; location?: string }) => {
-    if (!session?.user) return;
-    const { error } = await supabase.from('profiles').update(updates).eq('id', session.user.id);
-    if (error) {
-      console.error("[AppContext] Update profile error:", error);
-      showError('Failed to update profile: ' + error.message);
-    } else {
+    if (!session?.user || isProcessing) return;
+    setIsProcessing(true);
+    try {
+      const { error } = await supabase.from('profiles').update(updates).eq('id', session.user.id);
+      if (error) throw error;
       showSuccess('Profile updated!');
       await fetchProfile(session.user.id);
+    } catch (e: any) {
+      showError('Failed to update profile: ' + e.message);
+    } finally {
+      setIsProcessing(false);
     }
   };
 
   const signOut = async () => {
     setLoading(true);
-    await supabase.auth.signOut();
-    setUser(null);
-    setSession(null);
-    setTransactions([]);
-    setLoading(false);
+    try {
+      await supabase.auth.signOut();
+      setUser(null);
+      setSession(null);
+      setTransactions([]);
+      localStorage.removeItem('pending_role');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const refreshProfile = async () => {
@@ -356,7 +405,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   return (
     <AppContext.Provider value={{ 
-      user, session, inventory, transactions, impactMetrics, loading,
+      user, session, inventory, transactions, impactMetrics, loading, isProcessing,
       addFoodItem, requestFood, claimDelivery, updateTransactionStatus, updateProfile, signOut, refreshProfile, refreshData
     }}>
       {children}

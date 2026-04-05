@@ -3,21 +3,25 @@
 import React from 'react';
 import { useApp } from '@/context/AppContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { ShieldCheck, Users, ShoppingBasket, UtensilsCrossed, TrendingUp, Activity } from 'lucide-react';
+import { ShieldCheck, Users, ShoppingBasket, UtensilsCrossed, TrendingUp, Activity, CheckCircle2, XCircle, Clock, Truck } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { Badge } from '@/components/ui/badge';
 
 const AdminPanel = () => {
-  const { user, inventory, transactions } = useApp();
+  const { user, inventory, transactions, updateTransactionStatus, isProcessing } = useApp();
 
   if (user?.role !== 'Admin') {
     return <div className="p-20 text-center">Access Denied. Admins only.</div>;
   }
 
+  const pendingApprovals = transactions.filter(t => t.status === 'Pending Approval');
+  const pendingConfirmations = transactions.filter(t => t.status === 'Pending Confirmation');
+
   const stats = [
     { label: 'Total Inventory', value: inventory.length, icon: UtensilsCrossed, color: 'text-blue-600', bg: 'bg-blue-50' },
-    { label: 'Active Transactions', value: transactions.filter(t => t.status !== 'Delivered').length, icon: Activity, color: 'text-amber-600', bg: 'bg-amber-50' },
+    { label: 'Active Transactions', value: transactions.filter(t => !['Delivered', 'Cancelled'].includes(t.status)).length, icon: Activity, color: 'text-amber-600', bg: 'bg-amber-50' },
     { label: 'Completed Deliveries', value: transactions.filter(t => t.status === 'Delivered').length, icon: ShieldCheck, color: 'text-emerald-600', bg: 'bg-emerald-50' },
   ];
 
@@ -52,6 +56,86 @@ const AdminPanel = () => {
             </Card>
           ))}
         </div>
+
+        {/* Approvals Queue */}
+        <section className="mb-8">
+          <h2 className="text-xl font-bold text-slate-900 mb-4 flex items-center gap-2">
+            <Clock className="w-5 h-5 text-amber-600" />
+            Verification Queue
+          </h2>
+          <div className="grid gap-4">
+            {[...pendingApprovals, ...pendingConfirmations].length === 0 ? (
+              <div className="bg-white p-8 rounded-3xl text-center border border-slate-100">
+                <p className="text-slate-400 text-sm">No pending verifications at the moment.</p>
+              </div>
+            ) : (
+              <>
+                {pendingApprovals.map((t) => (
+                  <Card key={t.id} className="border-none shadow-sm rounded-2xl overflow-hidden border-l-4 border-amber-500">
+                    <div className="p-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                      <div className="flex items-start gap-4">
+                        <div className="w-10 h-10 rounded-xl bg-amber-50 flex items-center justify-center shrink-0">
+                          <ShoppingBasket className="w-5 h-5 text-amber-600" />
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <h3 className="font-bold text-slate-900">{t.itemName}</h3>
+                            <Badge className="bg-amber-100 text-amber-700 border-none text-[10px]">Request Approval</Badge>
+                          </div>
+                          <p className="text-xs text-slate-500">Requested by: {t.beneficiaryName}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Button 
+                          onClick={() => updateTransactionStatus(t.id, t.itemId, 'Approved')}
+                          disabled={isProcessing}
+                          className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl h-9 px-4 text-xs font-bold"
+                        >
+                          <CheckCircle2 className="w-4 h-4 mr-2" /> Approve Request
+                        </Button>
+                        <Button 
+                          onClick={() => updateTransactionStatus(t.id, t.itemId, 'Cancelled')}
+                          disabled={isProcessing}
+                          variant="outline" 
+                          className="rounded-xl h-9 px-4 text-xs font-bold border-rose-200 text-rose-600 hover:bg-rose-50"
+                        >
+                          <XCircle className="w-4 h-4 mr-2" /> Reject
+                        </Button>
+                      </div>
+                    </div>
+                  </Card>
+                ))}
+                {pendingConfirmations.map((t) => (
+                  <Card key={t.id} className="border-none shadow-sm rounded-2xl overflow-hidden border-l-4 border-blue-500">
+                    <div className="p-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                      <div className="flex items-start gap-4">
+                        <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center shrink-0">
+                          <Truck className="w-5 h-5 text-blue-600" />
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <h3 className="font-bold text-slate-900">{t.itemName}</h3>
+                            <Badge className="bg-blue-100 text-blue-700 border-none text-[10px]">Delivery Confirmation</Badge>
+                          </div>
+                          <p className="text-xs text-slate-500">Delivered to: {t.beneficiaryName}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Button 
+                          onClick={() => updateTransactionStatus(t.id, t.itemId, 'Delivered')}
+                          disabled={isProcessing}
+                          className="bg-blue-600 hover:bg-blue-700 text-white rounded-xl h-9 px-4 text-xs font-bold"
+                        >
+                          <CheckCircle2 className="w-4 h-4 mr-2" /> Confirm Delivery
+                        </Button>
+                      </div>
+                    </div>
+                  </Card>
+                ))}
+              </>
+            )}
+          </div>
+        </section>
 
         <div className="grid md:grid-cols-2 gap-6">
           <Card className="border-none shadow-sm rounded-3xl p-6">
